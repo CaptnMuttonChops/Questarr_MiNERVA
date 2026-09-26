@@ -33,7 +33,11 @@ export const screenshotsRootDir = () => path.join(configLoader.getConfigDir(), "
 
 /** Per-game screenshot directory, exported for reuse by the game-deletion cleanup. */
 export function screenshotDirForGame(gameId: string): string {
-  return path.join(screenshotsRootDir(), gameId);
+  // gameId is already UUID-regex-validated by sanitizeGameId, but normalize and
+  // strip any leading ".." segments here too so this segment can never carry a
+  // path traversal, independent of that upstream check.
+  const safeGameId = path.normalize(gameId).replace(/^(\.\.(\/|\\|$))+/, "");
+  return path.join(screenshotsRootDir(), safeGameId);
 }
 
 const ALLOWED_SCREENSHOT_MIME_TYPES: Record<string, string> = {
@@ -45,7 +49,7 @@ const ALLOWED_SCREENSHOT_MIME_TYPES: Record<string, string> = {
 const screenshotUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 5 * 1024 * 1024, // 5MB
     files: 1,
     fields: 1, // only the "caption" text field is allowed alongside the file
     fieldSize: 1024,

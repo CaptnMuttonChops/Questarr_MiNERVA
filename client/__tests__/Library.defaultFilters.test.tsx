@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
@@ -87,5 +87,53 @@ describe("Library default filtering settings", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Shelved Game")).toBeInTheDocument());
+  });
+
+  it("reveals shelved games again via the filter panel override switch", async () => {
+    mockFetch({ hideShelvedByDefault: true, hideOwnedInHasResults: true });
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <Library />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("Wanted Game")).toBeInTheDocument());
+    expect(screen.queryByText("Shelved Game")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle filters" }));
+
+    const showShelvedSwitch = await screen.findByRole("switch", { name: "Show shelved games" });
+    fireEvent.click(showShelvedSwitch);
+
+    await waitFor(() => expect(screen.getByText("Shelved Game")).toBeInTheDocument());
+  });
+
+  it("hides owned games from the Has Results filter by default, and the override reveals them", async () => {
+    mockFetch({ hideShelvedByDefault: true, hideOwnedInHasResults: true });
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <Library />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("Owned Game")).toBeInTheDocument());
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Show games with search results only" })[0]
+    );
+
+    await waitFor(() => expect(screen.queryByText("Owned Game")).not.toBeInTheDocument());
+    expect(screen.getByText("Wanted Game")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle filters" }));
+
+    const showOwnedSwitch = await screen.findByRole("switch", {
+      name: "Show owned games in Has Results",
+    });
+    fireEvent.click(showOwnedSwitch);
+
+    await waitFor(() => expect(screen.getByText("Owned Game")).toBeInTheDocument());
   });
 });

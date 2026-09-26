@@ -113,6 +113,18 @@ export type _InsertReleaseBlacklist = Expect<
     typeof pgSchema.releaseBlacklist.$inferInsert
   >
 >;
+export type _SelectAiAutoDownloadHolds = Expect<
+  Equal<
+    typeof sqliteSchema.aiAutoDownloadHolds.$inferSelect,
+    typeof pgSchema.aiAutoDownloadHolds.$inferSelect
+  >
+>;
+export type _InsertAiAutoDownloadHolds = Expect<
+  Equal<
+    typeof sqliteSchema.aiAutoDownloadHolds.$inferInsert,
+    typeof pgSchema.aiAutoDownloadHolds.$inferInsert
+  >
+>;
 export type _SelectNotifications = Expect<
   Equal<typeof sqliteSchema.notifications.$inferSelect, typeof pgSchema.notifications.$inferSelect>
 >;

@@ -109,7 +109,7 @@ Each dialect has its own schema module and migration history:
 codebase; `shared/schema.pg.ts` is a runtime-only mirror. They are kept
 interchangeable by two guards, both of which run in CI:
 
-- `shared/schema-parity.ts` — compile-time assertions that all 19 tables infer
+- `shared/schema-parity.ts` — compile-time assertions that all 20 tables infer
   identical row and insert shapes.
 - `shared/__tests__/schema-parity.test.ts` — runtime assertions on SQL column
   names, nullability, defaults and primary keys.

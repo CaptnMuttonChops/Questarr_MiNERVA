@@ -90,7 +90,7 @@ having only run one dialect.
 ## 4. Verify before committing
 
 ```bash
-npm run check    # includes the 38 compile-time schema parity assertions
+npm run check    # includes the 40 compile-time schema parity assertions
 npm run lint
 npm run test:run # includes both parity suites, across both dialects
 npm run db:generate:pg && git status --porcelain migrations-pg   # must be empty

@@ -8,6 +8,7 @@ import {
   createIgdbMock,
   createAuthMock,
   createDbMock,
+  createDbModuleMock,
   createLoggerMocks,
   createRssMock,
   createTorznabMock,
@@ -42,13 +43,14 @@ import { routesLogger } from "../logger.js";
 import { db } from "../db.js";
 import { appriseClient } from "../apprise.js";
 import fsExtra from "fs-extra";
+import { normalizeTitle } from "../../shared/title-utils.js";
 
 // Mock dependencies (factory bodies live in ./fixtures/common-route-mocks.ts so they can be
 // shared with other test files that also boot the full app via registerRoutes())
 vi.mock("../storage.js", () => ({ storage: createStorageMock() }));
 vi.mock("../igdb.js", () => ({ igdbClient: createIgdbMock() }));
 vi.mock("../auth.js", () => createAuthMock());
-vi.mock("../db.js", () => ({ db: createDbMock() }));
+vi.mock("../db.js", () => createDbModuleMock());
 vi.mock("../logger.js", () => createLoggerMocks());
 vi.mock("../rss.js", () => ({ rssService: createRssMock() }));
 vi.mock("../torznab.js", () => ({ torznabClient: createTorznabMock() }));
@@ -3489,6 +3491,23 @@ describe("API Routes - Extended Coverage", () => {
 
         expect(response.status).toBe(201);
         expect(response.body).toMatchObject({ releaseTitle: "Test Game-SKIDROW" });
+      });
+
+      it("clears any pending AI auto-download hold for the blacklisted release", async () => {
+        vi.mocked(storage.getGame).mockResolvedValue(mockGame as any);
+        vi.mocked(storage.addReleaseBlacklist).mockResolvedValue(blacklistEntry as any);
+
+        await request(app)
+          .post(`/api/games/${gameId}/blacklist`)
+          .send({ releaseTitle: "Test Game-SKIDROW" });
+
+        // clearAiAutoDownloadHold is fired-and-forgotten (not awaited by the route), so
+        // give its microtask a tick to run before asserting.
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(storage.clearAiAutoDownloadHold).toHaveBeenCalledWith(
+          gameId,
+          normalizeTitle("Test Game-SKIDROW")
+        );
       });
 
       it("should return 400 for missing releaseTitle", async () => {

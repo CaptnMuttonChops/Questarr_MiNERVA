@@ -6,8 +6,7 @@ import { stripUndefined } from "./object-utils.js";
 import { normalizeDownloadHash, normalizeTrackedKey } from "./download-hash.js";
 import { igdbClient } from "./igdb.js";
 import type { IGDBGame } from "./igdb.js";
-import { db } from "./db.js";
-import { sql } from "drizzle-orm";
+import { pingDatabase } from "./db.js";
 import {
   insertGameSchema,
   insertGameDownloadSchema,
@@ -1424,7 +1423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Check database connectivity
     try {
-      await db.get(sql`SELECT 1`);
+      await pingDatabase();
     } catch (error) {
       routesLogger.error({ error }, "database health check failed");
       isHealthy = false;
@@ -2254,6 +2253,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const entry = await storage.addReleaseBlacklist(parsed.data);
+        // Best-effort: a blacklisted release is filtered out of search entirely, so any
+        // pending AI review hold for it is now moot. Never let this fail the blacklist
+        // request itself. Holds are keyed by normalized title (see cron.ts), so clear
+        // using the same normalization rather than the raw releaseTitle.
+        storage.clearAiAutoDownloadHold(gameId, normalizeTitle(releaseTitle)).catch((error) => {
+          routesLogger.warn({ error, gameId }, "Failed to clear AI auto-download hold");
+        });
         return res.status(201).json(entry);
       } catch (error) {
         routesLogger.error({ error }, "error adding to blacklist");
@@ -4060,6 +4066,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const downloadHash = rawDownloadHash
           ? normalizeDownloadHash(rawDownloadHash)
           : rawDownloadHash;
+        if (gameId && result.success) {
+          // The user just reviewed and chose this release directly, so any AI hold on it
+          // is resolved -- independent of whether the tracking writes below succeed, so a
+          // failure there can't leave a stale hold blocking auto-download for up to 7 days.
+          // Best-effort: never fail the request over this. Holds are keyed by normalized
+          // title (see cron.ts), so clear using the same normalization.
+          storage.clearAiAutoDownloadHold(gameId, normalizeTitle(title)).catch((error) => {
+            routesLogger.warn({ error, gameId }, "Failed to clear AI auto-download hold");
+          });
+        }
         if (gameId && result.success && downloadHash && result.downloaderId) {
           try {
             await storage.addGameDownload({

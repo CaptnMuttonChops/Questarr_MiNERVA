@@ -1,9 +1,71 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b6bb8511-985e-4f24-8fc6-b1ca51c78a2d",
+  "id": "4d22e86d-d7a5-4f76-a097-414fc1a8d727",
   "prevId": "dd059c75-0074-4aee-90de-0f97b7ea2687",
   "tables": {
+    "ai_auto_download_holds": {
+      "name": "ai_auto_download_holds",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "game_id": {
+          "name": "game_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "release_title": {
+          "name": "release_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(strftime('%s', 'now') * 1000)"
+        }
+      },
+      "indexes": {
+        "ai_auto_download_holds_game_title_idx": {
+          "name": "ai_auto_download_holds_game_title_idx",
+          "columns": ["game_id", "release_title"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "ai_auto_download_holds_game_id_games_id_fk": {
+          "name": "ai_auto_download_holds_game_id_games_id_fk",
+          "tableFrom": "ai_auto_download_holds",
+          "tableTo": "games",
+          "columnsFrom": ["game_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "api_keys": {
       "name": "api_keys",
       "columns": {
@@ -479,233 +541,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "game_journal_entries": {
-      "name": "game_journal_entries",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "game_id": {
-          "name": "game_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "(strftime('%s', 'now') * 1000)"
-        }
-      },
-      "indexes": {
-        "game_journal_entries_game_user_idx": {
-          "name": "game_journal_entries_game_user_idx",
-          "columns": ["game_id", "user_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "game_journal_entries_game_id_games_id_fk": {
-          "name": "game_journal_entries_game_id_games_id_fk",
-          "tableFrom": "game_journal_entries",
-          "tableTo": "games",
-          "columnsFrom": ["game_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "game_journal_entries_user_id_users_id_fk": {
-          "name": "game_journal_entries_user_id_users_id_fk",
-          "tableFrom": "game_journal_entries",
-          "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "game_milestones": {
-      "name": "game_milestones",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "game_id": {
-          "name": "game_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "(strftime('%s', 'now') * 1000)"
-        }
-      },
-      "indexes": {
-        "game_milestones_game_user_idx": {
-          "name": "game_milestones_game_user_idx",
-          "columns": ["game_id", "user_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "game_milestones_game_id_games_id_fk": {
-          "name": "game_milestones_game_id_games_id_fk",
-          "tableFrom": "game_milestones",
-          "tableTo": "games",
-          "columnsFrom": ["game_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "game_milestones_user_id_users_id_fk": {
-          "name": "game_milestones_user_id_users_id_fk",
-          "tableFrom": "game_milestones",
-          "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "game_screenshots": {
-      "name": "game_screenshots",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "game_id": {
-          "name": "game_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_path": {
-          "name": "file_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "caption": {
-          "name": "caption",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "(strftime('%s', 'now') * 1000)"
-        }
-      },
-      "indexes": {
-        "game_screenshots_game_user_idx": {
-          "name": "game_screenshots_game_user_idx",
-          "columns": ["game_id", "user_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "game_screenshots_game_id_games_id_fk": {
-          "name": "game_screenshots_game_id_games_id_fk",
-          "tableFrom": "game_screenshots",
-          "tableTo": "games",
-          "columnsFrom": ["game_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "game_screenshots_user_id_users_id_fk": {
-          "name": "game_screenshots_user_id_users_id_fk",
-          "tableFrom": "game_screenshots",
-          "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "games": {
       "name": "games",
       "columns": {
@@ -929,6 +764,13 @@
         "user_rating": {
           "name": "user_rating",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

@@ -427,6 +427,10 @@ router.delete(
       if (!gameId) return;
       const user = req.user as User;
       const { screenshotId } = req.params as { screenshotId: string };
+      const owned = await storage.getGameScreenshots(gameId, user.id);
+      if (!owned.some((s) => s.id === screenshotId)) {
+        return res.status(404).json({ error: "Screenshot not found" });
+      }
       const deleted = await storage.deleteGameScreenshot(screenshotId, user.id);
       if (!deleted) return res.status(404).json({ error: "Screenshot not found" });
 

@@ -438,14 +438,16 @@ describe("Game journal routes", () => {
       const filePath = path.join(screenshotDir, "to-delete.png");
       await fs.writeFile(filePath, PNG_BYTES);
 
-      vi.mocked(storage.deleteGameScreenshot).mockResolvedValue({
+      const screenshot = {
         id: screenshotId,
         gameId,
         userId: OWNER_ID,
         filePath,
         caption: null,
         createdAt: new Date(),
-      } as GameScreenshot);
+      } as GameScreenshot;
+      vi.mocked(storage.getGameScreenshots).mockResolvedValue([screenshot]);
+      vi.mocked(storage.deleteGameScreenshot).mockResolvedValue(screenshot);
 
       const response = await request(app).delete(
         `/api/games/${gameId}/screenshots/${screenshotId}`
@@ -455,7 +457,28 @@ describe("Game journal routes", () => {
       await expect(fs.access(filePath)).rejects.toThrow();
     });
 
+    it("returns 404 deleting a screenshot that belongs to a different game", async () => {
+      vi.mocked(storage.getGameScreenshots).mockResolvedValue([]);
+
+      const response = await request(app).delete(
+        `/api/games/${gameId}/screenshots/${screenshotId}`
+      );
+
+      expect(response.status).toBe(404);
+      expect(storage.deleteGameScreenshot).not.toHaveBeenCalled();
+    });
+
     it("returns 404 deleting a screenshot that doesn't exist", async () => {
+      vi.mocked(storage.getGameScreenshots).mockResolvedValue([
+        {
+          id: screenshotId,
+          gameId,
+          userId: OWNER_ID,
+          filePath: "/x.png",
+          caption: null,
+          createdAt: new Date(),
+        } as GameScreenshot,
+      ]);
       vi.mocked(storage.deleteGameScreenshot).mockResolvedValue(undefined);
 
       const response = await request(app).delete(

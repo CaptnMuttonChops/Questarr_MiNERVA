@@ -99,6 +99,62 @@ const NOTIFICATION_EVENT_ROWS: { key: NotificationEvent; label: string; group: s
   { key: "errorDetected", label: "Error Detected", group: "system" },
 ];
 
+function SettingsToggleRow({
+  id,
+  label,
+  description,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  label: React.ReactNode;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="space-y-0.5">
+        <Label htmlFor={id} className="text-sm font-medium">
+          {label}
+        </Label>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+function SettingsSaveButton({
+  onClick,
+  pending,
+  icon: Icon,
+  label,
+}: {
+  onClick: () => void;
+  pending: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}) {
+  return (
+    <div className="flex justify-end pt-4 border-t">
+      <Button onClick={onClick} disabled={pending} className="gap-2">
+        {pending ? (
+          <>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Saving...
+          </>
+        ) : (
+          <>
+            <Icon className="h-4 w-4" />
+            {label}
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 /**
  * Configures application preferences, integrations, notifications, account security, and system maintenance settings.
  */
@@ -1088,57 +1144,26 @@ export default function SettingsPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="hide-adult-content" className="text-sm font-medium">
-              Hide erotic content
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Hide games flagged with an explicit/erotic theme from your library, search, and
-              discovery pages
-            </p>
-          </div>
-          <Switch
-            id="hide-adult-content"
-            checked={hideAdultContent}
-            onCheckedChange={setHideAdultContent}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="hide-age-restricted-content" className="text-sm font-medium">
-              Hide age-restricted content
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Hide games rated ESRB Adults Only (AO) or PEGI 18 from your library, search, and
-              discovery pages
-            </p>
-          </div>
-          <Switch
-            id="hide-age-restricted-content"
-            checked={hideAgeRestrictedContent}
-            onCheckedChange={setHideAgeRestrictedContent}
-          />
-        </div>
-        <div className="flex justify-end pt-4 border-t">
-          <Button
-            onClick={handleSaveContentFilter}
-            disabled={updateSettingsMutation.isPending}
-            className="gap-2"
-          >
-            {updateSettingsMutation.isPending ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <EyeOff className="h-4 w-4" />
-                Save Content Filtering
-              </>
-            )}
-          </Button>
-        </div>
+        <SettingsToggleRow
+          id="hide-adult-content"
+          label="Hide erotic content"
+          description="Hide games flagged with an explicit/erotic theme from your library, search, and discovery pages"
+          checked={hideAdultContent}
+          onCheckedChange={setHideAdultContent}
+        />
+        <SettingsToggleRow
+          id="hide-age-restricted-content"
+          label="Hide age-restricted content"
+          description="Hide games rated ESRB Adults Only (AO) or PEGI 18 from your library, search, and discovery pages"
+          checked={hideAgeRestrictedContent}
+          onCheckedChange={setHideAgeRestrictedContent}
+        />
+        <SettingsSaveButton
+          onClick={handleSaveContentFilter}
+          pending={updateSettingsMutation.isPending}
+          icon={EyeOff}
+          label="Save Content Filtering"
+        />
       </CardContent>
     </Card>
   );
@@ -1153,55 +1178,26 @@ export default function SettingsPage() {
         <CardDescription>Choose which games are hidden by default in your library</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="hide-shelved-by-default" className="text-sm font-medium">
-              Hide shelved games by default
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Keep shelved games out of the library view unless you filter by the Shelved status
-            </p>
-          </div>
-          <Switch
-            id="hide-shelved-by-default"
-            checked={hideShelvedByDefault}
-            onCheckedChange={setHideShelvedByDefault}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="hide-owned-in-has-results" className="text-sm font-medium">
-              Hide owned games in &ldquo;Has Results&rdquo; filter
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              When the Has Results filter is active, skip games you already own
-            </p>
-          </div>
-          <Switch
-            id="hide-owned-in-has-results"
-            checked={hideOwnedInHasResults}
-            onCheckedChange={setHideOwnedInHasResults}
-          />
-        </div>
-        <div className="flex justify-end pt-4 border-t">
-          <Button
-            onClick={handleSaveLibraryFilters}
-            disabled={updateSettingsMutation.isPending}
-            className="gap-2"
-          >
-            {updateSettingsMutation.isPending ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Archive className="h-4 w-4" />
-                Save Library Filtering
-              </>
-            )}
-          </Button>
-        </div>
+        <SettingsToggleRow
+          id="hide-shelved-by-default"
+          label="Hide shelved games by default"
+          description="Keep shelved games out of the library view unless you filter by the Shelved status"
+          checked={hideShelvedByDefault}
+          onCheckedChange={setHideShelvedByDefault}
+        />
+        <SettingsToggleRow
+          id="hide-owned-in-has-results"
+          label={"Hide owned games in “Has Results” filter"}
+          description="When the Has Results filter is active, skip games you already own"
+          checked={hideOwnedInHasResults}
+          onCheckedChange={setHideOwnedInHasResults}
+        />
+        <SettingsSaveButton
+          onClick={handleSaveLibraryFilters}
+          pending={updateSettingsMutation.isPending}
+          icon={Archive}
+          label="Save Library Filtering"
+        />
       </CardContent>
     </Card>
   );

@@ -46,6 +46,27 @@ import GameFilterPills from "./GameFilterPills";
 import PendingImportsCard from "./PendingImportsCard";
 import { LIBRARY_SORT_OPTIONS, sortLibraryGames, type LibrarySortOption } from "@/lib/game-sort";
 
+function LabeledSwitch({
+  id,
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      <Label htmlFor={id} className="cursor-pointer">
+        {label}
+      </Label>
+    </div>
+  );
+}
+
 export default function Library() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -594,28 +615,20 @@ export default function Library() {
                 (showSearchResultsOnly && (userSettings?.hideOwnedInHasResults ?? true))) && (
                 <div className="flex flex-col sm:flex-row gap-4 items-start border-t pt-4">
                   {(userSettings?.hideShelvedByDefault ?? true) && (
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="filter-show-shelved"
-                        checked={showShelvedOverride}
-                        onCheckedChange={setShowShelvedOverride}
-                      />
-                      <Label htmlFor="filter-show-shelved" className="cursor-pointer">
-                        Show shelved games
-                      </Label>
-                    </div>
+                    <LabeledSwitch
+                      id="filter-show-shelved"
+                      label="Show shelved games"
+                      checked={showShelvedOverride}
+                      onCheckedChange={setShowShelvedOverride}
+                    />
                   )}
                   {showSearchResultsOnly && (userSettings?.hideOwnedInHasResults ?? true) && (
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="filter-show-owned-in-results"
-                        checked={showOwnedInResultsOverride}
-                        onCheckedChange={setShowOwnedInResultsOverride}
-                      />
-                      <Label htmlFor="filter-show-owned-in-results" className="cursor-pointer">
-                        Show owned games in Has Results
-                      </Label>
-                    </div>
+                    <LabeledSwitch
+                      id="filter-show-owned-in-results"
+                      label="Show owned games in Has Results"
+                      checked={showOwnedInResultsOverride}
+                      onCheckedChange={setShowOwnedInResultsOverride}
+                    />
                   )}
                 </div>
               )}

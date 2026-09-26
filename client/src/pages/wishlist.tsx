@@ -82,9 +82,7 @@ export default function WishlistPage() {
     const lowercaseQuery = searchQuery?.toLowerCase() || "";
 
     // 笞｡ Bolt: Consolidate multiple O(N) filters into a single manual traversal
-    for (let i = 0; i < games.length; i++) {
-      const game = games[i];
-
+    for (const game of games) {
       // Apply filters
       if (showSearchResultsOnly && !game.searchResultsAvailable) continue;
       if (showDownloadsOnly && !downloadSummaries?.[game.id]) continue;
@@ -155,7 +153,7 @@ export default function WishlistPage() {
 
   useEffect(() => {
     if (mobileSections.length > 0 && !mobileSections.some((section) => section.id === activeTab)) {
-      setActiveTab(mobileSections[0].id);
+      setActiveTab(mobileSections[0]!.id);
     }
   }, [mobileSections, activeTab]);
 

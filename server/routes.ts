@@ -49,10 +49,12 @@ import {
 import { z } from "zod";
 import { routesLogger } from "./logger.js";
 import { getPendingReport, sendPendingReport } from "./error-telemetry.js";
+import { SCAN_MAX_FILES, SCAN_TIME_BUDGET_MS } from "./scan-limits.js";
 import {
   igdbRateLimiter,
   sensitiveEndpointLimiter,
   authRateLimiter,
+  scanRateLimiter,
   validateRequest,
   sanitizeSearchQuery,
   sanitizeGameId,
@@ -403,7 +405,7 @@ export function validateSetupCredentials(
 
   const passwordCheck = passwordPolicySchema.safeParse(trimmedPassword);
   if (!passwordCheck.success) {
-    return { error: passwordCheck.error.issues[0].message };
+    return { error: passwordCheck.error.issues[0]?.message ?? "Invalid password" };
   }
 
   if (trimmedUsername.length > 50) {
@@ -1502,7 +1504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { status } = req.params;
+        const { status } = req.params as { status: string };
         const { includeHidden } = req.query;
 
         const userId = req.user!.id;
@@ -1591,7 +1593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const userId = req.user!.id;
         const statusUpdate = updateGameStatusSchema.parse(req.body);
 
@@ -1621,7 +1623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const userId = req.user!.id;
         const { hidden } = updateGameHiddenSchema.parse(req.body);
 
@@ -1651,7 +1653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const userId = req.user!.id;
         const { userRating } = updateGameUserRatingSchema.parse(req.body);
 
@@ -1679,7 +1681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const userId = req.user!.id;
         const target = updateGameTargetPlatformSchema.parse(req.body);
 
@@ -1929,6 +1931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
+        const { id } = req.params as { id: string };
         const updates = updateRootFolderSchema.parse(req.body);
 
         if (updates.path) {
@@ -1937,7 +1940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // nosemgrep: javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal -- same as the create route: an arbitrary admin-supplied absolute path, not a filename joined onto a fixed destination
           updates.path = path.resolve(updates.path);
           const clash = await storage.getRootFolderByPath(updates.path);
-          if (clash && clash.id !== req.params.id) {
+          if (clash && clash.id !== id) {
             return res.status(409).json({ error: "Another root folder already uses this path" });
           }
 
@@ -1950,7 +1953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               details: probe.error ?? "Path must exist and be a readable directory",
             });
           }
-          const folder = await storage.updateRootFolder(req.params.id, updates);
+          const folder = await storage.updateRootFolder(id, updates);
           if (!folder) return res.status(404).json({ error: "Root folder not found" });
           const withHealth = await storage.updateRootFolderHealth(folder.id, {
             accessible: probe.accessible,
@@ -1960,7 +1963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json(withHealth ?? folder);
         }
 
-        const folder = await storage.updateRootFolder(req.params.id, updates);
+        const folder = await storage.updateRootFolder(id, updates);
         if (!folder) return res.status(404).json({ error: "Root folder not found" });
         return res.json(folder);
       } catch (error) {
@@ -1981,7 +1984,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const success = await storage.removeRootFolder(req.params.id);
+        const { id } = req.params as { id: string };
+        const success = await storage.removeRootFolder(id);
         if (!success) return res.status(404).json({ error: "Root folder not found" });
         return res.status(204).send();
       } catch (error) {
@@ -2000,7 +2004,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const folder = await storage.getRootFolder(req.params.id);
+        const { id } = req.params as { id: string };
+        const folder = await storage.getRootFolder(id);
         if (!folder) return res.status(404).json({ error: "Root folder not found" });
 
         const probe = await probeRootFolder(folder.path);
@@ -2116,7 +2121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const userId = req.user!.id;
         const deleteFiles = req.query.deleteFiles === "true";
 
@@ -2195,10 +2200,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
+        const { id } = req.params as { id: string };
         const userId = req.user!.id;
-        const game = await resolveOwnedGame(req.params.id, userId, res);
+        const game = await resolveOwnedGame(id, userId, res);
         if (!game) return;
-        const downloads = await storage.getDownloadsByGameId(req.params.id);
+        const downloads = await storage.getDownloadsByGameId(id);
         res.json(downloads);
       } catch (error) {
         routesLogger.error({ error }, "error fetching game downloads");
@@ -2233,7 +2239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     authenticateToken,
     async (req: Request, res: Response) => {
       try {
-        const { gameId } = req.params;
+        const { gameId } = req.params as { gameId: string };
         const userId = req.user!.id;
 
         if (!(await resolveOwnedGame(gameId, userId, res))) return;
@@ -2262,7 +2268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     authenticateToken,
     async (req: Request, res: Response) => {
       try {
-        const { gameId } = req.params;
+        const { gameId } = req.params as { gameId: string };
         const userId = req.user!.id;
 
         if (!(await resolveOwnedGame(gameId, userId, res))) return;
@@ -2282,7 +2288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     authenticateToken,
     async (req: Request, res: Response) => {
       try {
-        const { gameId, id } = req.params;
+        const { gameId, id } = req.params as { gameId: string; id: string };
         const userId = req.user!.id;
 
         if (!(await resolveOwnedGame(gameId, userId, res))) return;
@@ -2328,9 +2334,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   ];
 
   // Recursively scan a game library folder. This endpoint is read-only; imports are handled separately.
+  // The walk is bounded (file count + wall-clock budget) and rate-limited per user,
+  // since a very large library tree can otherwise exhaust filesystem I/O and memory.
   app.get(
     "/api/games/:gameId/files",
     authenticateToken,
+    scanRateLimiter,
     gameIdParamValidation,
     validateRequest,
     async (req: Request, res: Response) => {
@@ -2352,9 +2361,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       try {
-        const game = await resolveOwnedGame(req.params.gameId, req.user!.id, res);
+        const { gameId } = req.params as { gameId: string };
+        const game = await resolveOwnedGame(gameId, req.user!.id, res);
         if (!game) return;
-        if (!game.libraryPath) return res.json({ files: [] });
+        if (!game.libraryPath) return res.json({ files: [], truncated: false });
 
         const importConfig = await storage.getImportConfig(req.user!.id);
         const libraryRoot = await realpathOrNull(importConfig.libraryRoot);
@@ -2363,7 +2373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           candidate === root ||
           candidate.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
         if (!libraryRoot || !scanRoot || !isContained(scanRoot, libraryRoot)) {
-          return res.json({ files: [] });
+          return res.json({ files: [], truncated: false });
         }
 
         const categoryDirs = new Set<DownloadCategory>(["dlc", "update", "extra", "packs"]);
@@ -2376,7 +2386,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const normalizeCategory = (category: DownloadCategory): GameFileCategory =>
           category === "packs" ? "extra" : category;
         const files: ScannedGameFile[] = [];
+        let truncated = false;
+        const deadline = Date.now() + SCAN_TIME_BUDGET_MS;
         const walk = async (dir: string, inheritedCategory?: DownloadCategory): Promise<void> => {
+          if (truncated) return;
           const canonicalDir = await realpathOrNull(dir);
           if (!canonicalDir || !isContained(canonicalDir, libraryRoot)) return;
           let entries: fs.Dirent[];
@@ -2387,6 +2400,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw error;
           }
           for (const entry of entries) {
+            // Stop traversing once a budget is exceeded; `truncated` short-circuits
+            // every pending recursion level on the way back up the tree.
+            if (truncated || files.length >= SCAN_MAX_FILES || Date.now() >= deadline) {
+              truncated = true;
+              return;
+            }
             const fullPath = path.join(canonicalDir, entry.name);
             if (entry.isDirectory()) {
               const lowerName = entry.name.toLowerCase();
@@ -2411,7 +2430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         };
         await walk(scanRoot);
-        return res.json({ files });
+        return res.json({ files, truncated });
       } catch (error) {
         routesLogger.error({ error }, "error scanning game files");
         return res.status(500).json({ error: "Failed to scan game files" });
@@ -2427,7 +2446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { gameId } = req.params;
+        const { gameId } = req.params as { gameId: string };
         const userId = req.user!.id;
 
         const game = await resolveOwnedGame(gameId, userId, res);
@@ -2472,7 +2491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { downloadId } = req.params;
+        const { downloadId } = req.params as { downloadId: string };
         const download = await storage.getGameDownload(downloadId, req.user!.id);
         if (!download) {
           return res.status(404).json({ error: "Download not found" });
@@ -2523,7 +2542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const gameFile = await storage.getGameFile(id);
         if (!gameFile) {
           return res.status(404).json({ error: "Game file not found" });
@@ -2677,7 +2696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const igdbId = parseInt(id);
 
         if (isNaN(igdbId)) {
@@ -2750,7 +2769,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single indexer
   app.get("/api/indexers/:id", async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const indexer = await storage.getIndexer(id);
       if (!indexer) {
         return res.status(404).json({ error: "Indexer not found" });
@@ -2796,7 +2815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const updates = { ...req.body }; // Partial updates
 
         if (updates.url && !(await isSafeUrl(updates.url))) {
@@ -2823,7 +2842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete indexer
   app.delete("/api/indexers/:id", sensitiveEndpointLimiter, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const success = await storage.removeIndexer(id);
       if (!success) {
         return res.status(404).json({ error: "Indexer not found" });
@@ -2949,7 +2968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single downloader
   app.get("/api/downloaders/:id", async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const downloader = await storage.getDownloader(id);
       if (!downloader) {
         return res.status(404).json({ error: "Downloader not found" });
@@ -2995,7 +3014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const updates = { ...req.body }; // Partial updates
 
         if (updates.url && !(await isSafeUrl(updates.url))) {
@@ -3039,7 +3058,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete downloader
   app.delete("/api/downloaders/:id", sensitiveEndpointLimiter, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const success = await storage.removeDownloader(id);
       if (!success) {
         return res.status(404).json({ error: "Downloader not found" });
@@ -3118,7 +3137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test existing indexer connection by ID
   app.post("/api/indexers/:id/test", async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const indexer = await storage.getIndexer(id);
 
       if (!indexer) {
@@ -3139,7 +3158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get available categories from an indexer
   app.get("/api/indexers/:id/categories", async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const indexer = await storage.getIndexer(id);
 
       if (!indexer) {
@@ -3162,7 +3181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const { query, category, cat, limit = 50, offset = 0 } = req.query;
 
         if (!query || typeof query !== "string") {
@@ -3269,7 +3288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test existing downloader connection by ID
   app.post("/api/downloaders/:id/test", async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const downloader = await storage.getDownloader(id);
 
       if (!downloader) {
@@ -3294,7 +3313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const { url, title, category, downloadPath, priority, downloadType, password } = req.body;
 
         if (!url || !title) {
@@ -3333,7 +3352,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all downloads from a downloader
   app.get("/api/downloaders/:id/downloads", async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const downloader = await storage.getDownloader(id);
 
       if (!downloader) {
@@ -3351,7 +3370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get specific download status
   app.get("/api/downloaders/:id/downloads/:downloadId", async (req, res) => {
     try {
-      const { id, downloadId } = req.params;
+      const { id, downloadId } = req.params as { id: string; downloadId: string };
       const downloader = await storage.getDownloader(id);
 
       if (!downloader) {
@@ -3373,7 +3392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get detailed download information (files, trackers, etc.)
   app.get("/api/downloaders/:id/downloads/:downloadId/details", async (req, res) => {
     try {
-      const { id, downloadId } = req.params;
+      const { id, downloadId } = req.params as { id: string; downloadId: string };
       const downloader = await storage.getDownloader(id);
 
       if (!downloader) {
@@ -3395,7 +3414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pause download
   app.post("/api/downloaders/:id/downloads/:downloadId/pause", async (req, res) => {
     try {
-      const { id, downloadId } = req.params;
+      const { id, downloadId } = req.params as { id: string; downloadId: string };
       const downloader = await storage.getDownloader(id);
 
       if (!downloader) {
@@ -3415,7 +3434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Resume download
   app.post("/api/downloaders/:id/downloads/:downloadId/resume", async (req, res) => {
     try {
-      const { id, downloadId } = req.params;
+      const { id, downloadId } = req.params as { id: string; downloadId: string };
       const downloader = await storage.getDownloader(id);
 
       if (!downloader) {
@@ -3435,7 +3454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Remove download
   app.delete("/api/downloaders/:id/downloads/:downloadId", async (req, res) => {
     try {
-      const { id, downloadId } = req.params;
+      const { id, downloadId } = req.params as { id: string; downloadId: string };
       const { deleteFiles = false } = req.query;
 
       const downloader = await storage.getDownloader(id);
@@ -3615,8 +3634,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let libraryMatch: { game: (typeof userGames)[0]; confidence: number } | null = null;
 
         outer: for (const { game } of normalizedGameTitles) {
-          for (let i = 0; i < group.downloads.length; i++) {
-            if (releaseMatchesGame(cleanedDlTitles[i], game.title)) {
+          for (const dlTitle of cleanedDlTitles) {
+            if (releaseMatchesGame(dlTitle, game.title)) {
               libraryMatch = { game, confidence: 0.9 };
               break outer;
             }
@@ -3974,12 +3993,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     authenticateToken,
     async (req: Request, res: Response) => {
       try {
+        const { id, downloadId } = req.params as { id: string; downloadId: string };
         const userId = req.user!.id;
-        const game = await storage.getGame(req.params.id);
+        const game = await storage.getGame(id);
         if (!game || game.userId !== userId) {
           return res.status(404).json({ error: "Game not found" });
         }
-        const removed = await storage.removeGameDownload(req.params.downloadId, req.params.id);
+        const removed = await storage.removeGameDownload(downloadId, id);
         if (!removed) {
           return res.status(404).json({ error: "Download record not found" });
         }
@@ -4173,7 +4193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/notifications/:id/read", authenticateToken, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const notification = await storage.markNotificationAsRead(id, req.user!.id);
       if (!notification) {
         return res.status(404).json({ error: "Notification not found" });
@@ -4221,7 +4241,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     telemetryReportIdValidation,
     validateRequest,
     (req: Request, res: Response) => {
-      const report = getPendingReport(req.params.reportId, req.user!.id);
+      const { reportId } = req.params as { reportId: string };
+      const report = getPendingReport(reportId, req.user!.id);
       if (!report) {
         return res.status(404).json({ error: "This report is no longer available." });
       }
@@ -4241,7 +4262,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validateRequest,
     async (req: Request, res: Response) => {
       try {
-        const result = await sendPendingReport(req.params.reportId, req.user!.id);
+        const { reportId } = req.params as { reportId: string };
+        const result = await sendPendingReport(reportId, req.user!.id);
         if (!result.ok) {
           return res.status(422).json({ error: result.message });
         }
@@ -4804,8 +4826,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         res.set("Cache-Control", "no-store");
+        const { id } = req.params as { id: string };
         const userId = req.user!.id;
-        const game = await resolveOwnedGame(req.params.id, userId, res);
+        const game = await resolveOwnedGame(id, userId, res);
         if (!game) return;
 
         const baseUrl =

@@ -72,7 +72,7 @@ router.get(
         return res.json({ achievements: [], reason: "not_configured" });
       }
 
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const user = req.user as User;
 
       const game = await storage.getGame(id);

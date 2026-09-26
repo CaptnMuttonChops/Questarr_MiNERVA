@@ -4,8 +4,8 @@ import { useLocalStorageState } from "./use-local-storage-state";
 const GRID_COLUMNS_MIN = 2;
 const GRID_COLUMNS_MAX = 10;
 
-function sanitizeGridColumns(value: number): number {
-  if (!Number.isFinite(value)) return 5;
+function sanitizeGridColumns(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 5;
   return Math.min(GRID_COLUMNS_MAX, Math.max(GRID_COLUMNS_MIN, Math.round(value)));
 }
 

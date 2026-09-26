@@ -32,8 +32,14 @@ present in `latest`, and `latest`'s schema is far ahead of what it understands.
 1.  **Stop the current application:**
 
     ```bash
-    docker compose down app
+    docker compose -p <your-original-project-name> down app
     ```
+
+    Pass `-p` here too, for the same reason it is needed in step 3 below: if
+    your deployment used a custom project name, omitting it targets a
+    different project and leaves your app running, writing to the database
+    while the migration reads it. Step 2 explains how to find the name. If you
+    never set one, drop the flag.
 
 2.  **Save the compose file below** as `docker-compose.migrate.yml`.
 
@@ -108,10 +114,10 @@ present in `latest`, and `latest`'s schema is far ahead of what it understands.
     mistake that produces an empty result, because the migrator only reads
     `DATABASE_URL`.
 
-3.  **Run the migration:**
+3.  **Run the migration**, with the same project name as step 1:
 
     ```bash
-    docker compose -f docker-compose.migrate.yml up --abort-on-container-exit
+    docker compose -p <your-original-project-name> -f docker-compose.migrate.yml up --abort-on-container-exit
     ```
 
 4.  **Verify before starting Questarr.** Do not trust the exit status: the

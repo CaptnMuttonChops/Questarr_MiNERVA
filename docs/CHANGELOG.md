@@ -65,9 +65,11 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 
 - **Scan Disk endpoint hardening**: the recursive `Scan Disk` endpoint
   (`GET /api/games/:gameId/files`) is now bounded by a maximum file count, a
-  wall-clock time budget, and rate limiting, closing a potential
-  denial-of-service vector on very large or adversarial directory trees
-  (CWE-400, Uncontrolled Resource Consumption; issue #944).
+  wall-clock time budget, and rate limiting, reducing the resource cost of
+  walking very large or adversarial directory trees (CWE-400, Uncontrolled
+  Resource Consumption; issue #944). The traversal still reads one directory
+  level at a time before its per-entry checks apply, so a single directory
+  with an extreme number of entries is not fully bounded by this change.
 - **PostgreSQL connection string no longer logged**: the new
   `scripts/sqlite-to-pg.ts` migration script and the Postgres storage layer
   log nothing derived from the Postgres connection string, avoiding a repeat

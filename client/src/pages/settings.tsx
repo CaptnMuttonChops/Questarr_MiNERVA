@@ -155,6 +155,47 @@ function SettingsSaveButton({
   );
 }
 
+function SettingsFilterCard({
+  icon: Icon,
+  title,
+  description,
+  onSave,
+  savePending,
+  saveIcon,
+  saveLabel,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  onSave: () => void;
+  savePending: boolean;
+  saveIcon: React.ComponentType<{ className?: string }>;
+  saveLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center space-x-3">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-lg">{title}</CardTitle>
+        </div>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {children}
+        <SettingsSaveButton
+          onClick={onSave}
+          pending={savePending}
+          icon={saveIcon}
+          label={saveLabel}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 /**
  * Configures application preferences, integrations, notifications, account security, and system maintenance settings.
  */
@@ -1133,73 +1174,57 @@ export default function SettingsPage() {
   // discovery (what search/discover surface), so the same card is rendered in
   // both the Appearance and Discovery & Downloads tabs.
   const contentFilteringCard = (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center space-x-3">
-          <EyeOff className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg">Content Filtering</CardTitle>
-        </div>
-        <CardDescription>
-          Control which games appear in your library and discovery results
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <SettingsToggleRow
-          id="hide-adult-content"
-          label="Hide erotic content"
-          description="Hide games flagged with an explicit/erotic theme from your library, search, and discovery pages"
-          checked={hideAdultContent}
-          onCheckedChange={setHideAdultContent}
-        />
-        <SettingsToggleRow
-          id="hide-age-restricted-content"
-          label="Hide age-restricted content"
-          description="Hide games rated ESRB Adults Only (AO) or PEGI 18 from your library, search, and discovery pages"
-          checked={hideAgeRestrictedContent}
-          onCheckedChange={setHideAgeRestrictedContent}
-        />
-        <SettingsSaveButton
-          onClick={handleSaveContentFilter}
-          pending={updateSettingsMutation.isPending}
-          icon={EyeOff}
-          label="Save Content Filtering"
-        />
-      </CardContent>
-    </Card>
+    <SettingsFilterCard
+      icon={EyeOff}
+      title="Content Filtering"
+      description="Control which games appear in your library and discovery results"
+      onSave={handleSaveContentFilter}
+      savePending={updateSettingsMutation.isPending}
+      saveIcon={EyeOff}
+      saveLabel="Save Content Filtering"
+    >
+      <SettingsToggleRow
+        id="hide-adult-content"
+        label="Hide erotic content"
+        description="Hide games flagged with an explicit/erotic theme from your library, search, and discovery pages"
+        checked={hideAdultContent}
+        onCheckedChange={setHideAdultContent}
+      />
+      <SettingsToggleRow
+        id="hide-age-restricted-content"
+        label="Hide age-restricted content"
+        description="Hide games rated ESRB Adults Only (AO) or PEGI 18 from your library, search, and discovery pages"
+        checked={hideAgeRestrictedContent}
+        onCheckedChange={setHideAgeRestrictedContent}
+      />
+    </SettingsFilterCard>
   );
 
   const libraryFilteringCard = (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center space-x-3">
-          <Filter className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg">Library Filtering</CardTitle>
-        </div>
-        <CardDescription>Choose which games are hidden by default in your library</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <SettingsToggleRow
-          id="hide-shelved-by-default"
-          label="Hide shelved games by default"
-          description="Keep shelved games out of the library view unless you filter by the Shelved status"
-          checked={hideShelvedByDefault}
-          onCheckedChange={setHideShelvedByDefault}
-        />
-        <SettingsToggleRow
-          id="hide-owned-in-has-results"
-          label={"Hide owned games in “Has Results” filter"}
-          description="When the Has Results filter is active, skip games you already own"
-          checked={hideOwnedInHasResults}
-          onCheckedChange={setHideOwnedInHasResults}
-        />
-        <SettingsSaveButton
-          onClick={handleSaveLibraryFilters}
-          pending={updateSettingsMutation.isPending}
-          icon={Archive}
-          label="Save Library Filtering"
-        />
-      </CardContent>
-    </Card>
+    <SettingsFilterCard
+      icon={Filter}
+      title="Library Filtering"
+      description="Choose which games are hidden by default in your library"
+      onSave={handleSaveLibraryFilters}
+      savePending={updateSettingsMutation.isPending}
+      saveIcon={Archive}
+      saveLabel="Save Library Filtering"
+    >
+      <SettingsToggleRow
+        id="hide-shelved-by-default"
+        label="Hide shelved games by default"
+        description="Keep shelved games out of the library view unless you filter by the Shelved status"
+        checked={hideShelvedByDefault}
+        onCheckedChange={setHideShelvedByDefault}
+      />
+      <SettingsToggleRow
+        id="hide-owned-in-has-results"
+        label={"Hide owned games in “Has Results” filter"}
+        description="When the Has Results filter is active, skip games you already own"
+        checked={hideOwnedInHasResults}
+        onCheckedChange={setHideOwnedInHasResults}
+      />
+    </SettingsFilterCard>
   );
 
   return (

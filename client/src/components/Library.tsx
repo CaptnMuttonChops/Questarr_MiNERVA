@@ -611,27 +611,34 @@ export default function Library() {
                   </Label>
                 </div>
               </div>
-              {((userSettings?.hideShelvedByDefault ?? true) ||
-                (showSearchResultsOnly && (userSettings?.hideOwnedInHasResults ?? true))) && (
-                <div className="flex flex-col sm:flex-row gap-4 items-start border-t pt-4">
-                  {(userSettings?.hideShelvedByDefault ?? true) && (
-                    <LabeledSwitch
-                      id="filter-show-shelved"
-                      label="Show shelved games"
-                      checked={showShelvedOverride}
-                      onCheckedChange={setShowShelvedOverride}
-                    />
-                  )}
-                  {showSearchResultsOnly && (userSettings?.hideOwnedInHasResults ?? true) && (
-                    <LabeledSwitch
-                      id="filter-show-owned-in-results"
-                      label="Show owned games in Has Results"
-                      checked={showOwnedInResultsOverride}
-                      onCheckedChange={setShowOwnedInResultsOverride}
-                    />
-                  )}
-                </div>
-              )}
+              {(() => {
+                const filterOverrides = [
+                  {
+                    id: "filter-show-shelved",
+                    label: "Show shelved games",
+                    checked: showShelvedOverride,
+                    onCheckedChange: setShowShelvedOverride,
+                    visible: userSettings?.hideShelvedByDefault ?? true,
+                  },
+                  {
+                    id: "filter-show-owned-in-results",
+                    label: "Show owned games in Has Results",
+                    checked: showOwnedInResultsOverride,
+                    onCheckedChange: setShowOwnedInResultsOverride,
+                    visible: showSearchResultsOnly && (userSettings?.hideOwnedInHasResults ?? true),
+                  },
+                ].filter((override) => override.visible);
+
+                return (
+                  filterOverrides.length > 0 && (
+                    <div className="flex flex-col sm:flex-row gap-4 items-start border-t pt-4">
+                      {filterOverrides.map(({ visible: _visible, ...override }) => (
+                        <LabeledSwitch key={override.id} {...override} />
+                      ))}
+                    </div>
+                  )
+                );
+              })()}
             </CardContent>
           </Card>
         )}

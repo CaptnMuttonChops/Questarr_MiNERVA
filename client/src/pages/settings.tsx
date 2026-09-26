@@ -1200,6 +1200,24 @@ export default function SettingsPage() {
     </SettingsFilterCard>
   );
 
+  const libraryFilterRows = [
+    {
+      id: "hide-shelved-by-default",
+      label: "Hide shelved games by default",
+      description:
+        "Keep shelved games out of the library view unless you filter by the Shelved status",
+      checked: hideShelvedByDefault,
+      onCheckedChange: setHideShelvedByDefault,
+    },
+    {
+      id: "hide-owned-in-has-results",
+      label: "Hide owned games in “Has Results” filter",
+      description: "When the Has Results filter is active, skip games you already own",
+      checked: hideOwnedInHasResults,
+      onCheckedChange: setHideOwnedInHasResults,
+    },
+  ];
+
   const libraryFilteringCard = (
     <SettingsFilterCard
       icon={Filter}
@@ -1210,20 +1228,9 @@ export default function SettingsPage() {
       saveIcon={Archive}
       saveLabel="Save Library Filtering"
     >
-      <SettingsToggleRow
-        id="hide-shelved-by-default"
-        label="Hide shelved games by default"
-        description="Keep shelved games out of the library view unless you filter by the Shelved status"
-        checked={hideShelvedByDefault}
-        onCheckedChange={setHideShelvedByDefault}
-      />
-      <SettingsToggleRow
-        id="hide-owned-in-has-results"
-        label={"Hide owned games in “Has Results” filter"}
-        description="When the Has Results filter is active, skip games you already own"
-        checked={hideOwnedInHasResults}
-        onCheckedChange={setHideOwnedInHasResults}
-      />
+      {libraryFilterRows.map((row) => (
+        <SettingsToggleRow key={row.id} {...row} />
+      ))}
     </SettingsFilterCard>
   );
 

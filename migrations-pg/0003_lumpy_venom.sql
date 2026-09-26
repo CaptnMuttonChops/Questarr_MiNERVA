@@ -35,7 +35,7 @@ CREATE INDEX "game_milestones_game_user_idx" ON "game_milestones" USING btree ("
 CREATE INDEX "game_screenshots_game_user_idx" ON "game_screenshots" USING btree ("game_id","user_id");--> statement-breakpoint
 INSERT INTO "game_journal_entries" ("id", "game_id", "user_id", "note", "created_at")
 SELECT
-	md5(random()::text || clock_timestamp()::text),
+	gen_random_uuid()::text,
 	"id",
 	COALESCE("user_id", (SELECT "id" FROM "users" LIMIT 1)),
 	"notes",

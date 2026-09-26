@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -49,7 +49,7 @@ const ALLOWED_SCREENSHOT_MIME_TYPES: Record<string, string> = {
 const screenshotUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
+    fileSize: 8_000_000, // 8MB, at SonarCloud's advisory threshold for this rule
     files: 1,
     fields: 1, // only the "caption" text field is allowed alongside the file
     fieldSize: 1024,
@@ -291,7 +291,14 @@ router.post(
   sensitiveEndpointLimiter,
   sanitizeGameId,
   validateRequest,
-  screenshotUpload.single("file"),
+  (req: Request, res: Response, next: NextFunction) =>
+    screenshotUpload.single("file")(req, res, (err: unknown) => {
+      if (err) {
+        const message = err instanceof Error ? err.message : "Invalid upload";
+        return res.status(400).json({ error: message });
+      }
+      return next();
+    }),
   async (req: Request, res: Response) => {
     try {
       const gameId = await requireOwnedGame(req, res);

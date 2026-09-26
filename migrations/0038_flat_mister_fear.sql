@@ -35,7 +35,10 @@ CREATE TABLE `game_screenshots` (
 CREATE INDEX `game_screenshots_game_user_idx` ON `game_screenshots` (`game_id`,`user_id`);--> statement-breakpoint
 INSERT INTO `game_journal_entries` (`id`, `game_id`, `user_id`, `note`, `created_at`)
 SELECT
-	lower(hex(randomblob(16))),
+	lower(
+		hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' ||
+		hex(randomblob(2)) || '-' || hex(randomblob(6))
+	),
 	`id`,
 	COALESCE(`user_id`, (SELECT `id` FROM `users` ORDER BY `rowid` ASC LIMIT 1)),
 	`notes`,

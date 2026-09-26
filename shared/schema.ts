@@ -57,6 +57,12 @@ export const userSettings = sqliteTable("user_settings", {
   hideAgeRestrictedContent: integer("hide_age_restricted_content", { mode: "boolean" })
     .notNull()
     .default(true),
+  hideShelvedByDefault: integer("hide_shelved_by_default", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  hideOwnedInHasResults: integer("hide_owned_in_has_results", { mode: "boolean" })
+    .notNull()
+    .default(true),
   // Import Engine Settings
   enablePostProcessing: integer("enable_post_processing", { mode: "boolean" })
     .notNull()

@@ -17,7 +17,7 @@ import {
   Settings2,
   X,
 } from "lucide-react";
-import { type Game } from "@shared/schema";
+import { type Game, type UserSettings } from "@shared/schema";
 import { type GameStatus } from "./StatusBadge";
 import { useHiddenMutation } from "@/hooks/use-hidden-mutation";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +57,10 @@ export default function Library() {
   const [showDownloadsOnly, setShowDownloadsOnly] = useState(false);
   const [minRating, setMinRating] = useState<number | null>(null);
   const [showUnratedOnly, setShowUnratedOnly] = useState(false);
+  // Session-only overrides for the account-level default filters (see Settings
+  // > Library Filtering). These don't persist so the defaults apply again next visit.
+  const [showShelvedOverride, setShowShelvedOverride] = useState(false);
+  const [showOwnedInResultsOverride, setShowOwnedInResultsOverride] = useState(false);
   const [sortBy, setSortBy] = useLocalStorageState<LibrarySortOption>(
     "librarySortBy",
     "added-desc"
@@ -70,6 +74,8 @@ export default function Library() {
     setShowDownloadsOnly(false);
     setMinRating(null);
     setShowUnratedOnly(false);
+    setShowShelvedOverride(false);
+    setShowOwnedInResultsOverride(false);
   }, []);
 
   const { viewMode, setViewMode, listDensity, setListDensity } = useViewControls("dashboard");
@@ -79,6 +85,13 @@ export default function Library() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: userSettings } = useQuery<UserSettings>({
+    queryKey: ["/api/settings"],
+  });
+  const hideShelvedByDefault = (userSettings?.hideShelvedByDefault ?? true) && !showShelvedOverride;
+  const hideOwnedInHasResults =
+    (userSettings?.hideOwnedInHasResults ?? true) && !showOwnedInResultsOverride;
 
   const {
     data: games = [],
@@ -144,9 +157,21 @@ export default function Library() {
   const filteredGames = useMemo(() => {
     const filtered = games.filter((game) => {
       if (statusFilter !== "all" && game.status !== statusFilter) return false;
+      // Shelved games are hidden by default unless the user explicitly filters
+      // by the Shelved status, which always takes precedence over the default.
+      if (hideShelvedByDefault && statusFilter === "all" && game.status === "shelved") return false;
       if (genreFilter !== "all" && !game.genres?.includes(genreFilter)) return false;
       if (platformFilter !== "all" && !game.platforms?.includes(platformFilter)) return false;
       if (showSearchResultsOnly && !game.searchResultsAvailable) return false;
+      // Owned games are skipped by the Has Results filter by default (you
+      // already own them), unless the user explicitly filters by Owned status.
+      if (
+        showSearchResultsOnly &&
+        hideOwnedInHasResults &&
+        statusFilter !== "owned" &&
+        game.status === "owned"
+      )
+        return false;
       if (showDownloadsOnly && !downloadSummaries[game.id]) return false;
       if (showUnratedOnly) return game.userRating === null;
       if (minRating !== null && (game.userRating === null || game.userRating < minRating))
@@ -160,6 +185,8 @@ export default function Library() {
     genreFilter,
     platformFilter,
     showSearchResultsOnly,
+    hideShelvedByDefault,
+    hideOwnedInHasResults,
     showDownloadsOnly,
     downloadSummaries,
     minRating,
@@ -189,6 +216,16 @@ export default function Library() {
       filters.push({ label: `Rating: ≥ ${minRating}`, onRemove: () => setMinRating(null) });
     if (showUnratedOnly)
       filters.push({ label: "Unrated only", onRemove: () => setShowUnratedOnly(false) });
+    if (showShelvedOverride)
+      filters.push({
+        label: "Shelved games shown",
+        onRemove: () => setShowShelvedOverride(false),
+      });
+    if (showSearchResultsOnly && showOwnedInResultsOverride)
+      filters.push({
+        label: "Owned games shown in results",
+        onRemove: () => setShowOwnedInResultsOverride(false),
+      });
     return filters;
   }, [
     statusFilter,
@@ -198,6 +235,8 @@ export default function Library() {
     showDownloadsOnly,
     minRating,
     showUnratedOnly,
+    showShelvedOverride,
+    showOwnedInResultsOverride,
   ]);
 
   const libStats = useMemo(() => calculateLibraryStats(games), [games]);
@@ -551,6 +590,35 @@ export default function Library() {
                   </Label>
                 </div>
               </div>
+              {((userSettings?.hideShelvedByDefault ?? true) ||
+                (showSearchResultsOnly && (userSettings?.hideOwnedInHasResults ?? true))) && (
+                <div className="flex flex-col sm:flex-row gap-4 items-start border-t pt-4">
+                  {(userSettings?.hideShelvedByDefault ?? true) && (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="filter-show-shelved"
+                        checked={showShelvedOverride}
+                        onCheckedChange={setShowShelvedOverride}
+                      />
+                      <Label htmlFor="filter-show-shelved" className="cursor-pointer">
+                        Show shelved games
+                      </Label>
+                    </div>
+                  )}
+                  {showSearchResultsOnly && (userSettings?.hideOwnedInHasResults ?? true) && (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="filter-show-owned-in-results"
+                        checked={showOwnedInResultsOverride}
+                        onCheckedChange={setShowOwnedInResultsOverride}
+                      />
+                      <Label htmlFor="filter-show-owned-in-results" className="cursor-pointer">
+                        Show owned games in Has Results
+                      </Label>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -563,7 +631,11 @@ export default function Library() {
               genreFilter !== "all" ||
               platformFilter !== "all" ||
               minRating !== null ||
-              showUnratedOnly;
+              showUnratedOnly ||
+              (hideShelvedByDefault && games.some((g) => g.status === "shelved")) ||
+              (showSearchResultsOnly &&
+                hideOwnedInHasResults &&
+                games.some((g) => g.status === "owned"));
             const hasSearchQuery = debouncedSearchQuery.trim();
 
             if (hasActiveFilters) {

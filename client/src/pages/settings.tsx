@@ -22,6 +22,8 @@ import {
   Monitor,
   Radio,
   Sparkles,
+  Archive,
+  Filter,
 } from "lucide-react";
 import { NexusModsIcon } from "@/components/NexusModsIcon";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -292,6 +294,8 @@ export default function SettingsPage() {
   const [xrelP2pReleases, setXrelP2pReleases] = useState(false);
   const [hideAdultContent, setHideAdultContent] = useState(true);
   const [hideAgeRestrictedContent, setHideAgeRestrictedContent] = useState(true);
+  const [hideShelvedByDefault, setHideShelvedByDefault] = useState(true);
+  const [hideOwnedInHasResults, setHideOwnedInHasResults] = useState(true);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const [xrelApiBase, setXrelApiBase] = useState("");
   const [nexusApiKey, setNexusApiKey] = useState("");
@@ -351,6 +355,8 @@ export default function SettingsPage() {
       setSteamSyncIntervalHours(userSettings.steamSyncIntervalHours ?? 24);
       setHideAdultContent(userSettings.hideAdultContent ?? true);
       setHideAgeRestrictedContent(userSettings.hideAgeRestrictedContent ?? true);
+      setHideShelvedByDefault(userSettings.hideShelvedByDefault ?? true);
+      setHideOwnedInHasResults(userSettings.hideOwnedInHasResults ?? true);
       setTelemetryEnabled(userSettings.telemetryEnabled ?? false);
       settingsLoadedRef.current = true;
     }
@@ -890,6 +896,16 @@ export default function SettingsPage() {
     });
   };
 
+  const handleSaveLibraryFilters = () => {
+    updateSettingsMutation.mutate({
+      updates: {
+        hideShelvedByDefault,
+        hideOwnedInHasResults,
+      },
+      successMessage: "Your library filtering defaults have been saved.",
+    });
+  };
+
   const handleSaveTelemetry = () => {
     updateSettingsMutation.mutate({
       updates: { telemetryEnabled },
@@ -1127,6 +1143,69 @@ export default function SettingsPage() {
     </Card>
   );
 
+  const libraryFilteringCard = (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center space-x-3">
+          <Filter className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-lg">Library Filtering</CardTitle>
+        </div>
+        <CardDescription>Choose which games are hidden by default in your library</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="hide-shelved-by-default" className="text-sm font-medium">
+              Hide shelved games by default
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Keep shelved games out of the library view unless you filter by the Shelved status
+            </p>
+          </div>
+          <Switch
+            id="hide-shelved-by-default"
+            checked={hideShelvedByDefault}
+            onCheckedChange={setHideShelvedByDefault}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="hide-owned-in-has-results" className="text-sm font-medium">
+              Hide owned games in &ldquo;Has Results&rdquo; filter
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              When the Has Results filter is active, skip games you already own
+            </p>
+          </div>
+          <Switch
+            id="hide-owned-in-has-results"
+            checked={hideOwnedInHasResults}
+            onCheckedChange={setHideOwnedInHasResults}
+          />
+        </div>
+        <div className="flex justify-end pt-4 border-t">
+          <Button
+            onClick={handleSaveLibraryFilters}
+            disabled={updateSettingsMutation.isPending}
+            className="gap-2"
+          >
+            {updateSettingsMutation.isPending ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Archive className="h-4 w-4" />
+                Save Library Filtering
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="h-full overflow-auto p-4 pb-20 sm:p-6 md:pb-6">
       <div className="mb-6">
@@ -1234,6 +1313,8 @@ export default function SettingsPage() {
             </Card>
 
             {contentFilteringCard}
+
+            {libraryFilteringCard}
           </TabsContent>
 
           <TabsContent value="discovery" className="space-y-6">

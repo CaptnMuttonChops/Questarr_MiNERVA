@@ -8,7 +8,7 @@ import LinkGameModal from "./LinkGameModal";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
-import { GAME_LINK_REQUIRED_STATUS } from "@shared/schema";
+import { GAME_LINK_REQUIRED_STATUS, QUARANTINED_STATUS } from "@shared/schema";
 
 interface PendingImport {
   id: string;
@@ -124,11 +124,13 @@ export default function PendingImportsCard() {
                         className="text-xs text-destructive truncate max-w-[300px]"
                         title={item.errorMessage}
                       >
-                        {item.status === GAME_LINK_REQUIRED_STATUS
-                          ? item.errorMessage
-                          : item.passwordRequired
-                            ? `Password required: ${item.errorMessage}`
-                            : `Import failed: ${item.errorMessage}`}
+                        {item.status === QUARANTINED_STATUS
+                          ? `Security alert: ${item.errorMessage}`
+                          : item.status === GAME_LINK_REQUIRED_STATUS
+                            ? item.errorMessage
+                            : item.passwordRequired
+                              ? `Password required: ${item.errorMessage}`
+                              : `Import failed: ${item.errorMessage}`}
                       </p>
                     )}
                   </div>
@@ -139,15 +141,17 @@ export default function PendingImportsCard() {
                       disabled={skipMutation.isPending && skipMutation.variables === item.id}
                       onClick={() => skipMutation.mutate(item.id)}
                     >
-                      Skip
+                      {item.status === QUARANTINED_STATUS ? "Dismiss" : "Skip"}
                     </Button>
-                    <Button size="sm" onClick={() => setSelectedImport(item)}>
-                      {(() => {
-                        if (item.status === GAME_LINK_REQUIRED_STATUS) return "Link Game";
-                        if (item.passwordRequired) return "Enter Password";
-                        return "Review";
-                      })()}
-                    </Button>
+                    {item.status !== QUARANTINED_STATUS && (
+                      <Button size="sm" onClick={() => setSelectedImport(item)}>
+                        {(() => {
+                          if (item.status === GAME_LINK_REQUIRED_STATUS) return "Link Game";
+                          if (item.passwordRequired) return "Enter Password";
+                          return "Review";
+                        })()}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -22,6 +22,10 @@ import { logger } from "../logger.js";
 import { extractHostnameFromUrl } from "../url-utils.js";
 import { isSensitivePath, assertWithinRoots } from "../path-security.js";
 import { notifyUser } from "../socket.js";
+import { QUARANTINED_STATUS } from "../../shared/schema.js";
+import { resolvePrefs } from "../notification-prefs.js";
+import { appriseClient } from "../apprise.js";
+import { type SecurityScanService, type ScanResult } from "../security-scan.js";
 
 const RELEASE_PLATFORM_TO_IGDB_ID: Record<string, number> = {
   nes: 18,
@@ -97,12 +101,22 @@ interface ArchiveResolution {
 export class ImportManager {
   private readonly pathRetryCount = new Map<string, number>();
 
+  // Optional and defaulted (rather than required) so existing call sites — and
+  // the many unit tests that construct an ImportManager directly — don't all
+  // need updating just because a new pre-import gate was added. A scan service
+  // that always passes is a safe default: it matches the pre-existing behavior
+  // of importing without any security scan.
+  private readonly securityScanService: Pick<SecurityScanService, "scan">;
+
   constructor(
     private readonly storage: IStorage,
     private readonly pathService: PathMappingService,
     _platformService: PlatformMappingService,
-    private readonly archiveService: ArchiveService
-  ) {}
+    private readonly archiveService: ArchiveService,
+    securityScanService?: Pick<SecurityScanService, "scan">
+  ) {
+    this.securityScanService = securityScanService ?? { scan: async () => ({ blocked: false }) };
+  }
 
   private extractPlatformIdFromElement(p: unknown): number | undefined {
     if (typeof p === "number") return p;
@@ -626,6 +640,70 @@ export class ImportManager {
     }
   }
 
+  /**
+   * Moves a scan-flagged download out of the downloader's directory and into an
+   * isolated quarantine folder (a sibling of the library root, never inside it),
+   * marks the download "quarantined" instead of importing it, and raises a
+   * Security Alert notification. Move failures fall back to leaving the file in
+   * place — the download is still marked quarantined so it isn't imported either way.
+   */
+  private async quarantineDownload(
+    downloadId: string,
+    game: { title: string; userId?: string | null },
+    localPath: string,
+    scanResult: ScanResult,
+    libraryRoot: string
+  ): Promise<void> {
+    const quarantineRoot = path.join(path.dirname(libraryRoot), ".questarr-quarantine");
+    const quarantineDest = path.join(quarantineRoot, downloadId, path.basename(localPath));
+
+    let quarantinedPath = localPath;
+    try {
+      await fs.ensureDir(path.dirname(quarantineDest));
+      await fs.move(localPath, quarantineDest, { overwrite: true });
+      quarantinedPath = quarantineDest;
+    } catch (moveErr) {
+      logger.error(
+        { moveErr, downloadId, localPath },
+        "[ImportManager] Failed to move flagged download to quarantine — leaving it in place"
+      );
+    }
+
+    logger.warn(
+      { downloadId, gameTitle: game.title, reason: scanResult.reason, quarantinedPath },
+      "[ImportManager] Download flagged by security scan and quarantined"
+    );
+
+    await this.storage.updateGameDownloadStatus(
+      downloadId,
+      QUARANTINED_STATUS,
+      scanResult.reason ?? "Flagged by security scan"
+    );
+
+    try {
+      const providerLabel = scanResult.source === "virustotal" ? "VirusTotal" : "ClamAV";
+      const notification = await this.storage.addNotification({
+        userId: game.userId ?? undefined,
+        type: "error",
+        title: `Security Alert: Download Flagged by ${providerLabel}`,
+        message: `"${game.title}" was flagged and quarantined. ${scanResult.reason ?? ""}`.trim(),
+        link: "/downloads",
+      });
+      notifyUser("notification", notification);
+
+      const userSettings = await this.storage.getUserSettings(game.userId ?? "");
+      const prefs = resolvePrefs(userSettings);
+      if (prefs.securityAlert.apprise) {
+        await appriseClient.send(notification);
+      }
+    } catch (notifyErr) {
+      logger.error(
+        { notifyErr, downloadId },
+        "[ImportManager] Failed to create security alert notification"
+      );
+    }
+  }
+
   private async flagNeedsReview(
     downloadId: string,
     game: { title: string },
@@ -732,6 +810,18 @@ export class ImportManager {
           userId: game.userId ?? undefined,
         }))
       ) {
+        return;
+      }
+
+      const scanResult = await this.securityScanService.scan(localPath);
+      if (scanResult.blocked) {
+        await this.quarantineDownload(
+          downloadId,
+          game,
+          localPath,
+          scanResult,
+          config.libraryRoot || "/data"
+        );
         return;
       }
 

@@ -43,6 +43,7 @@ import {
   type ApiKey,
   type ApiKeyPublic,
   GAME_LINK_REQUIRED_STATUS,
+  QUARANTINED_STATUS,
   type RootFolder,
   type InsertRootFolder,
   type UpdateRootFolder,
@@ -257,6 +258,8 @@ export interface IStorage {
   // Unlike getPendingImportReviews, this can't be scoped by userId — there's no game
   // row left to join against to determine ownership.
   getUnlinkedImportReviews(): Promise<GameDownload[]>;
+  // Downloads quarantined by the pre-import security scan (status "quarantined").
+  getQuarantinedDownloads(userId: string): Promise<GameDownload[]>;
   getGameDownload(id: string, userId?: string): Promise<GameDownload | undefined>;
   getDownloadsByGameId(
     gameId: string
@@ -963,6 +966,14 @@ export class MemStorage implements IStorage {
     return Array.from(this.gameDownloads.values()).filter(
       (d) => d.status === GAME_LINK_REQUIRED_STATUS
     );
+  }
+
+  async getQuarantinedDownloads(userId: string): Promise<GameDownload[]> {
+    return Array.from(this.gameDownloads.values()).filter((d) => {
+      if (d.status !== QUARANTINED_STATUS) return false;
+      const game = this.games.get(d.gameId);
+      return game?.userId === userId;
+    });
   }
 
   async relinkGameDownload(id: string, gameId: string): Promise<GameDownload | undefined> {
@@ -2376,6 +2387,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(gameDownloads)
       .where(eq(gameDownloads.status, GAME_LINK_REQUIRED_STATUS));
+  }
+
+  async getQuarantinedDownloads(userId: string): Promise<GameDownload[]> {
+    const rows = await db
+      .select({ gameDownloads })
+      .from(gameDownloads)
+      .innerJoin(games, eq(gameDownloads.gameId, games.id))
+      .where(and(eq(gameDownloads.status, QUARANTINED_STATUS), eq(games.userId, userId)));
+    return rows.map((r) => r.gameDownloads);
   }
 
   async relinkGameDownload(id: string, gameId: string): Promise<GameDownload | undefined> {

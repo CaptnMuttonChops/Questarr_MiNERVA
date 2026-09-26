@@ -82,7 +82,7 @@ import {
 import { config as appConfig } from "./config.js";
 import { configLoader } from "./config-loader.js";
 import { prowlarrClient } from "./prowlarr.js";
-import { isSafeUrl, safeFetch } from "./ssrf.js";
+import { isSafeUrl, safeFetch, resolveSafeAddress, normalizeHostname } from "./ssrf.js";
 import {
   hashPassword,
   comparePassword,
@@ -106,6 +106,8 @@ import {
   normalizeAppriseMode,
   readAppriseSettings,
 } from "./apprise.js";
+import { readVirusTotalSettings, readClamAvSettings } from "./security-scan.js";
+import net from "node:net";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -4551,6 +4553,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       routesLogger.error({ error }, "Apprise test failed");
       res.status(500).json({ error: "Apprise test failed" });
+    }
+  });
+
+  // Security & Scanning settings (Settings > Post-Processing > Security & Scanning)
+  app.get("/api/settings/security-scan", async (_req, res) => {
+    try {
+      const [vt, clamav] = await Promise.all([
+        readVirusTotalSettings(storage),
+        readClamAvSettings(storage),
+      ]);
+      res.json({
+        virusTotal: {
+          enabled: vt.enabled,
+          apiKey: vt.apiKey ? REDACTED_PLACEHOLDER : "",
+          threshold: vt.threshold,
+          blockUnknownHashes: vt.blockUnknownHashes,
+        },
+        clamav: {
+          enabled: clamav.enabled,
+          host: clamav.host ?? "",
+          port: clamav.port,
+        },
+      });
+    } catch (error) {
+      routesLogger.error({ error }, "Failed to fetch security scan settings");
+      res.status(500).json({ error: "Failed to fetch security scan settings" });
+    }
+  });
+
+  app.post("/api/settings/security-scan", async (req, res) => {
+    try {
+      const body = req.body as {
+        virusTotal?: {
+          enabled?: boolean;
+          apiKey?: string;
+          threshold?: number;
+          blockUnknownHashes?: boolean;
+        };
+        clamav?: { enabled?: boolean; host?: string; port?: number };
+      };
+
+      if (body.virusTotal) {
+        const { enabled, apiKey, threshold, blockUnknownHashes } = body.virusTotal;
+        if (enabled !== undefined) {
+          await storage.setSystemConfig("security.vt.enabled", String(!!enabled));
+        }
+        if (apiKey !== undefined && !isUnchangedSentinel(apiKey)) {
+          if (typeof apiKey !== "string" || !/^[A-Za-z0-9]{0,128}$/.test(apiKey)) {
+            return res.status(400).json({ error: "Invalid VirusTotal API key format" });
+          }
+          await storage.setSystemConfig("security.vt.apiKey", apiKey.trim());
+        }
+        if (threshold !== undefined) {
+          if (typeof threshold !== "number" || !Number.isInteger(threshold) || threshold < 0) {
+            return res.status(400).json({ error: "Threshold must be a non-negative integer" });
+          }
+          await storage.setSystemConfig("security.vt.threshold", String(threshold));
+        }
+        if (blockUnknownHashes !== undefined) {
+          await storage.setSystemConfig(
+            "security.vt.blockUnknownHashes",
+            String(!!blockUnknownHashes)
+          );
+        }
+      }
+
+      if (body.clamav) {
+        const { enabled, host, port } = body.clamav;
+        if (enabled !== undefined) {
+          await storage.setSystemConfig("security.clamav.enabled", String(!!enabled));
+        }
+        if (host !== undefined) {
+          if (typeof host !== "string" || host.trim().length > 255) {
+            return res.status(400).json({ error: "Invalid ClamAV host" });
+          }
+          await storage.setSystemConfig("security.clamav.host", host.trim());
+        }
+        if (port !== undefined) {
+          if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+            return res.status(400).json({ error: "Port must be between 1 and 65535" });
+          }
+          await storage.setSystemConfig("security.clamav.port", String(port));
+        }
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      routesLogger.error({ error }, "Failed to update security scan settings");
+      return res.status(500).json({ error: "Failed to update security scan settings" });
+    }
+  });
+
+  app.post("/api/settings/security-scan/test", async (req, res) => {
+    try {
+      const { provider } = req.body as { provider?: string };
+
+      if (provider === "virustotal") {
+        const vt = await readVirusTotalSettings(storage);
+        if (!vt.apiKey) {
+          return res.status(400).json({ error: "No VirusTotal API key configured" });
+        }
+        try {
+          const vtRes = await safeFetch(
+            `https://www.virustotal.com/api/v3/users/${encodeURIComponent(vt.apiKey)}`,
+            {
+              method: "GET",
+              headers: { "x-apikey": vt.apiKey },
+              timeoutMs: 10_000,
+              requireHttps: true,
+            }
+          );
+          if (vtRes.ok) return res.json({ success: true });
+          if (vtRes.status === 401 || vtRes.status === 403) {
+            return res.status(502).json({ error: "VirusTotal rejected the API key" });
+          }
+          return res.status(502).json({ error: `VirusTotal responded with ${vtRes.status}` });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return res.status(502).json({ error: message });
+        }
+      }
+
+      if (provider === "clamav") {
+        const clamav = await readClamAvSettings(storage);
+        if (!clamav.host) {
+          return res.status(400).json({ error: "No ClamAV host configured" });
+        }
+        try {
+          const { address } = await resolveSafeAddress(normalizeHostname(clamav.host), true);
+          const result = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+            const socket = new net.Socket();
+            socket.setTimeout(10_000);
+            socket.once("timeout", () => {
+              socket.destroy();
+              resolve({ success: false, error: "Connection to ClamAV timed out" });
+            });
+            socket.once("error", (err) => {
+              resolve({ success: false, error: err.message });
+            });
+            let data = "";
+            socket.connect(clamav.port, address, () => {
+              socket.write("zPING\0");
+            });
+            socket.on("data", (chunk) => {
+              data += chunk.toString("utf8");
+            });
+            socket.on("close", () => {
+              const reply = data.replace(/\0/g, "").trim();
+              if (reply.includes("PONG")) {
+                resolve({ success: true });
+              } else {
+                resolve({ success: false, error: reply || "No PONG reply from ClamAV" });
+              }
+            });
+          });
+          if (result.success) return res.json({ success: true });
+          return res.status(502).json({ error: result.error ?? "ClamAV test failed" });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return res.status(502).json({ error: message });
+        }
+      }
+
+      return res.status(400).json({ error: "Unknown provider" });
+    } catch (error) {
+      routesLogger.error({ error }, "Security scan provider test failed");
+      return res.status(500).json({ error: "Security scan provider test failed" });
     }
   });
 

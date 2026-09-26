@@ -18,6 +18,23 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
   pinned compose file, links the sources by tag permalink, and spells out how to
   verify the result.
 
+### Added
+
+- **Optional PostgreSQL backend**: Questarr can now run against PostgreSQL
+  instead of SQLite, selected via `DATABASE_URL`/config. Adds a Postgres
+  mirror of the Drizzle schema with parity guards, a dialect-aware
+  storage layer with both database implementations of the five
+  transactional operations, a `scripts/sqlite-to-pg.ts` data migration
+  script, a dual-dialect test suite (an in-memory Postgres via
+  `@electric-sql/pglite` for CI), and new `db:generate:pg` / `db:push:pg` /
+  `db:check:pg` npm scripts. See `docs/DATABASE.md`.
+- **AI sanity check before unattended auto-downloads**: auto-download now
+  runs an AI ("TypeSafe") legitimacy check before triggering, and puts a
+  suspicious match on hold for manual review — notified over Apprise —
+  instead of downloading it automatically. The check fails open (the
+  download proceeds) if the AI check itself errors, so a provider outage
+  never blocks legitimate auto-downloads.
+
 ### Fixed
 
 - **Documentation**: corrected `docs/SECRETS.md` §8, which presented the
@@ -28,9 +45,34 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
   the already-fixed line. §8 now states the affected range, the fix, and that
   **operators who ran the migration on an affected tag and retained the logs
   should rotate that Postgres password.**
+- **Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s
+  own example commands, so they target the right project when copy-pasted.
+- **Calendar year view**: follow-up date-filtering fixes on top of the recent
+  performance optimization (see Changed, below).
+- Several Postgres-backend correctness bugs found in review on the new
+  dialect (PR #1046): non-null assertions on guaranteed-nonempty query
+  results, transaction bugs, unique-conflict handling in
+  `updateGameDownloadHash`, releasing the migration lock connection even
+  when unlocking fails, and gaps in the AI auto-download hold
+  notification/expiry logic (holds keyed by normalized title, ignoring a
+  legitimacy score with no size).
+
+### Changed
+
+- **Calendar year view**: optimized date filtering for performance.
 
 ### Security
 
+- **Scan Disk endpoint hardening**: the recursive `Scan Disk` endpoint
+  (`GET /api/games/:gameId/files`) is now bounded by a maximum file count, a
+  wall-clock time budget, and rate limiting, closing a potential
+  denial-of-service vector on very large or adversarial directory trees
+  (CWE-400, Uncontrolled Resource Consumption; issue #944).
+- **PostgreSQL connection string no longer logged**: the new
+  `scripts/sqlite-to-pg.ts` migration script and the Postgres storage layer
+  log nothing derived from the Postgres connection string, avoiding a repeat
+  of the credential-logging issue fixed in v1.4.0 for the old migrator
+  (CWE-532, Insertion of Sensitive Information into Log File).
 - **Dependency Vulnerabilities**: Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
 - **Dependency Vulnerabilities**: Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).
 - **Dependency Vulnerabilities**: Fixed a critical IP-spoofing vulnerability in `proxy-addr`, flagged by Aikido Intel.

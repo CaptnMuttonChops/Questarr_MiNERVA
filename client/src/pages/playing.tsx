@@ -1,12 +1,10 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Gamepad2 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import GameGrid from "@/components/GameGrid";
+import GameStatusGrid from "@/components/GameStatusGrid";
 import { type Game } from "@shared/schema";
-import { type GameStatus } from "@/components/StatusBadge";
 import { useHiddenMutation } from "@/hooks/use-hidden-mutation";
-import { useToast } from "@/hooks/use-toast";
+import { useGameStatusMutation } from "@/hooks/use-game-status-mutation";
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import EmptyState from "@/components/EmptyState";
 import GameFilterPills from "@/components/GameFilterPills";
@@ -41,8 +39,6 @@ function sortGames(gameList: Game[], currentSortBy: SortOption): Game[] {
 }
 
 export default function PlayingPage() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [sortBy, setSortBy] = useState<SortOption>("added-desc");
   const { viewMode, setViewMode, listDensity, setListDensity } = useViewControls("playing");
   const [showDownloadsOnly, setShowDownloadsOnly] = useState(false);
@@ -104,19 +100,7 @@ export default function PlayingPage() {
     };
   }, [searchQuery, showDownloadsOnly, showSearchResultsOnly]);
 
-  const statusMutation = useMutation({
-    mutationFn: async ({ gameId, status }: { gameId: string; status: GameStatus }) => {
-      const response = await apiRequest("PATCH", `/api/games/${gameId}/status`, { status });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
-      toast({ description: "Game status updated successfully" });
-    },
-    onError: () => {
-      toast({ description: "Failed to update game status", variant: "destructive" });
-    },
-  });
+  const statusMutation = useGameStatusMutation();
 
   const hiddenMutation = useHiddenMutation({
     hiddenSuccessMessage: "Game hidden from library",
@@ -154,10 +138,10 @@ export default function PlayingPage() {
     );
   } else {
     playingContent = (
-      <GameGrid
+      <GameStatusGrid
         games={sortedGames}
-        onStatusChange={(id, status) => statusMutation.mutate({ gameId: id, status })}
-        onToggleHidden={(id, hidden) => hiddenMutation.mutate({ gameId: id, hidden })}
+        statusMutation={statusMutation}
+        hiddenMutation={hiddenMutation}
         isLoading={isLoading}
         viewMode={viewMode}
         density={listDensity}

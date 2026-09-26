@@ -1,12 +1,10 @@
 ﻿import React, { useMemo, useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Star, Eye, EyeOff } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import GameGrid from "@/components/GameGrid";
+import GameStatusGrid from "@/components/GameStatusGrid";
 import { type Game } from "@shared/schema";
-import { type GameStatus } from "@/components/StatusBadge";
 import { useHiddenMutation } from "@/hooks/use-hidden-mutation";
-import { useToast } from "@/hooks/use-toast";
+import { useGameStatusMutation } from "@/hooks/use-game-status-mutation";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import EmptyState from "@/components/EmptyState";
@@ -53,8 +51,6 @@ export const sortGames = (gameList: Game[], currentSortBy: SortOption): Game[] =
 };
 
 export default function WishlistPage() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [sortBy, setSortBy] = useState<SortOption>("release-desc");
   const { viewMode, setViewMode, listDensity, setListDensity } = useViewControls("wishlist");
   const [showUnreleased, setShowUnreleased] = useLocalStorageState("wishlistShowUnreleased", true);
@@ -200,19 +196,7 @@ export default function WishlistPage() {
     };
   }, [searchQuery, showDownloadsOnly, showSearchResultsOnly, showUnreleased]);
 
-  const statusMutation = useMutation({
-    mutationFn: async ({ gameId, status }: { gameId: string; status: GameStatus }) => {
-      const response = await apiRequest("PATCH", `/api/games/${gameId}/status`, { status });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
-      toast({ description: "Game status updated successfully" });
-    },
-    onError: () => {
-      toast({ description: "Failed to update game status", variant: "destructive" });
-    },
-  });
+  const statusMutation = useGameStatusMutation();
 
   const hiddenMutation = useHiddenMutation({
     hiddenSuccessMessage: "Game hidden from wishlist",
@@ -253,10 +237,10 @@ export default function WishlistPage() {
         </TabsList>
         {mobileSections.map((section) => (
           <TabsContent key={section.id} value={section.id} className="mt-4">
-            <GameGrid
+            <GameStatusGrid
               games={section.games}
-              onStatusChange={(id, status) => statusMutation.mutate({ gameId: id, status })}
-              onToggleHidden={(id, hidden) => hiddenMutation.mutate({ gameId: id, hidden })}
+              statusMutation={statusMutation}
+              hiddenMutation={hiddenMutation}
               isLoading={isLoading}
               viewMode={viewMode}
               density={listDensity}
@@ -278,10 +262,10 @@ export default function WishlistPage() {
               </h2>
               <span className="text-xs text-muted-foreground/60">{releasedGames.length}</span>
             </div>
-            <GameGrid
+            <GameStatusGrid
               games={sortedReleasedGames}
-              onStatusChange={(id, status) => statusMutation.mutate({ gameId: id, status })}
-              onToggleHidden={(id, hidden) => hiddenMutation.mutate({ gameId: id, hidden })}
+              statusMutation={statusMutation}
+              hiddenMutation={hiddenMutation}
               isLoading={isLoading}
               viewMode={viewMode}
               density={listDensity}
@@ -299,10 +283,10 @@ export default function WishlistPage() {
               </h2>
               <span className="text-xs text-muted-foreground/60">{upcomingGames.length}</span>
             </div>
-            <GameGrid
+            <GameStatusGrid
               games={sortedUpcomingGames}
-              onStatusChange={(id, status) => statusMutation.mutate({ gameId: id, status })}
-              onToggleHidden={(id, hidden) => hiddenMutation.mutate({ gameId: id, hidden })}
+              statusMutation={statusMutation}
+              hiddenMutation={hiddenMutation}
               isLoading={isLoading}
               viewMode={viewMode}
               density={listDensity}
@@ -320,10 +304,10 @@ export default function WishlistPage() {
               </h2>
               <span className="text-xs text-muted-foreground/60">{tbaGames.length}</span>
             </div>
-            <GameGrid
+            <GameStatusGrid
               games={sortedTbaGames}
-              onStatusChange={(id, status) => statusMutation.mutate({ gameId: id, status })}
-              onToggleHidden={(id, hidden) => hiddenMutation.mutate({ gameId: id, hidden })}
+              statusMutation={statusMutation}
+              hiddenMutation={hiddenMutation}
               isLoading={isLoading}
               viewMode={viewMode}
               density={listDensity}

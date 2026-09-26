@@ -17,7 +17,9 @@ interface MobileBottomNavProps {
 
 const pinnedUrls = new Set(mobileBottomNavigation.map((i) => i.url));
 
-const morePages: AppNavItem[] = primaryNavigation.filter((i) => !pinnedUrls.has(i.url));
+const morePages: AppNavItem[] = primaryNavigation
+  .flatMap((i) => (i.children ? [i, ...i.children] : [i]))
+  .filter((i) => !pinnedUrls.has(i.url));
 
 const isMoreActive = (activeItem: string) =>
   !pinnedUrls.has(activeItem) && activeItem !== "/login" && activeItem !== "/setup";

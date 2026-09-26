@@ -126,4 +126,135 @@ describe("steamService", () => {
       expect(games).toHaveLength(0);
     });
   });
+
+  describe("getPlayerAchievements", () => {
+    const steamId = "76561198000000000";
+
+    function mockFetches(opts: {
+      schema?: { ok: boolean; body: unknown };
+      achievements: { ok: boolean; body: unknown };
+      globalPercentages?: { ok: boolean; body: unknown };
+    }) {
+      vi.mocked(safeFetch).mockImplementation(async (url: string) => {
+        if (url.includes("GetSchemaForGame")) {
+          const { ok = true, body = {} } = opts.schema ?? {};
+          return { ok, status: ok ? 200 : 500, json: async () => body } as Response;
+        }
+        if (url.includes("GetPlayerAchievements")) {
+          return {
+            ok: opts.achievements.ok,
+            status: opts.achievements.ok ? 200 : 403,
+            json: async () => opts.achievements.body,
+          } as Response;
+        }
+        if (url.includes("GetGlobalAchievementPercentagesForApp")) {
+          const { ok = true, body = {} } = opts.globalPercentages ?? {};
+          return { ok, status: ok ? 200 : 500, json: async () => body } as Response;
+        }
+        throw new Error(`Unexpected URL: ${url}`);
+      });
+    }
+
+    it("throws for an invalid Steam ID", async () => {
+      await expect(steamService.getPlayerAchievements("key", "invalid", 111)).rejects.toThrow(
+        "Invalid Steam ID format"
+      );
+    });
+
+    it("merges schema, player achievements, and global percentages", async () => {
+      mockFetches({
+        schema: {
+          ok: true,
+          body: {
+            game: {
+              availableGameStats: {
+                achievements: [
+                  {
+                    name: "ACH_1",
+                    displayName: "First Steps",
+                    icon: "i1",
+                    icongray: "g1",
+                    hidden: 0,
+                  },
+                ],
+              },
+            },
+          },
+        },
+        achievements: {
+          ok: true,
+          body: {
+            playerstats: {
+              success: true,
+              achievements: [{ apiname: "ACH_1", achieved: 1, unlocktime: 1700000000 }],
+            },
+          },
+        },
+        globalPercentages: {
+          ok: true,
+          body: { achievementpercentages: { achievements: [{ name: "ACH_1", percent: 42.5 }] } },
+        },
+      });
+
+      const result = await steamService.getPlayerAchievements("key", steamId, 201);
+
+      expect(result).toEqual([
+        {
+          apiName: "ACH_1",
+          displayName: "First Steps",
+          description: null,
+          icon: "i1",
+          iconGray: "g1",
+          hidden: false,
+          achieved: true,
+          unlockedAt: 1700000000 * 1000,
+          globalPercent: 42.5,
+        },
+      ]);
+    });
+
+    it("surfaces a private profile (success: false) as an empty list, not an error", async () => {
+      mockFetches({
+        achievements: {
+          ok: false,
+          body: { playerstats: { success: false, error: "Profile is private" } },
+        },
+      });
+
+      const result = await steamService.getPlayerAchievements("key", steamId, 202);
+
+      expect(result).toEqual([]);
+    });
+
+    it("throws for a genuine non-2xx error unrelated to profile privacy", async () => {
+      mockFetches({
+        achievements: { ok: false, body: {} },
+      });
+
+      await expect(steamService.getPlayerAchievements("key", steamId, 203)).rejects.toThrow(
+        "Steam API error: 403"
+      );
+    });
+
+    it("falls back to an empty percentage map when the global percentages request fails", async () => {
+      mockFetches({
+        achievements: {
+          ok: true,
+          body: {
+            playerstats: {
+              success: true,
+              achievements: [{ apiname: "ACH_1", achieved: 0, unlocktime: 0 }],
+            },
+          },
+        },
+        globalPercentages: { ok: false, body: {} },
+      });
+
+      const result = await steamService.getPlayerAchievements("key", steamId, 204);
+
+      expect(result[0]?.globalPercent).toBeNull();
+      expect(result[0]?.achieved).toBe(false);
+      expect(result[0]?.unlockedAt).toBeNull();
+    });
+  });
 });

@@ -137,6 +137,11 @@ export interface ImportConfig {
 // LinkGameModal or the regular ImportReviewModal.
 export const GAME_LINK_REQUIRED_STATUS = "game_link_required";
 
+// gameDownloads.status value set when a pre-import security scan (VirusTotal
+// and/or ClamAV) flags the download. The file is moved to a quarantine
+// directory rather than the library, and the reason is recorded in errorMessage.
+export const QUARANTINED_STATUS = "quarantined";
+
 export const IMPORT_TRANSFER_MODES = ["move", "copy", "hardlink", "symlink"] as const;
 
 export type ImportTransferMode = (typeof IMPORT_TRANSFER_MODES)[number];
@@ -728,7 +733,8 @@ export type NotificationEvent =
   | "gameUpdates"
   | "xrelRelease"
   | "steamSync"
-  | "errorDetected";
+  | "errorDetected"
+  | "securityAlert";
 
 export type NotificationPreferences = Record<
   NotificationEvent,
@@ -747,6 +753,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   xrelRelease: { inApp: true, apprise: true },
   steamSync: { inApp: true, apprise: false },
   errorDetected: { inApp: true, apprise: false },
+  securityAlert: { inApp: true, apprise: true },
 };
 
 export interface DownloadSummary {

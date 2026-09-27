@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
 
 const { fsMock, downloadersMock } = vi.hoisted(() => ({
   fsMock: {
@@ -36,6 +37,7 @@ describe("ImportManager", () => {
     updateGameStatus: vi.fn(),
     updateGame: vi.fn(),
     addNotification: vi.fn().mockResolvedValue(undefined),
+    getUserSettings: vi.fn().mockResolvedValue(undefined),
   };
 
   const pathService = {
@@ -1305,5 +1307,304 @@ describe("ImportManager", () => {
       "manual_review_required",
       expect.anything()
     );
+  });
+
+  describe("security scan quarantine", () => {
+    it("quarantines the download instead of importing it when the scan blocks", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Flagged Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/data/library" });
+
+      const securityScanService = {
+        scan: vi.fn().mockResolvedValue({
+          blocked: true,
+          source: "virustotal",
+          reason: "VirusTotal detected 10 engine(s) flagging this file (threshold: 2)",
+        }),
+      };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await manager.processImport("dl-1", "/remote/path");
+
+      expect(securityScanService.scan).toHaveBeenCalledWith("/data/downloads/file.iso");
+      expect(fsMock.move).toHaveBeenCalledWith(
+        "/data/downloads/file.iso",
+        expect.stringContaining(`${path.sep}.questarr-quarantine${path.sep}dl-1${path.sep}`),
+        { overwrite: true }
+      );
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith(
+        "dl-1",
+        "quarantined",
+        "VirusTotal detected 10 engine(s) flagging this file (threshold: 2)"
+      );
+      expect(storage.addNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "u1",
+          type: "error",
+          title: expect.stringContaining("VirusTotal"),
+        })
+      );
+      // The import must never proceed past quarantine. Checked by scanning all
+      // calls for this (id, status) pair regardless of any trailing argument,
+      // rather than toHaveBeenCalledWith("dl-1", "imported") — which only
+      // matches an exact-arity call and would silently pass if the status
+      // were ever set alongside an error message or other third argument.
+      expect(
+        storage.updateGameDownloadStatus.mock.calls.some(
+          ([id, status]) => id === "dl-1" && status === "imported"
+        )
+      ).toBe(false);
+    });
+
+    it("does not create a notification when the securityAlert.inApp preference is disabled", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Flagged Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/data/library" });
+      storage.getUserSettings.mockResolvedValue({
+        notificationPreferences: JSON.stringify({
+          securityAlert: { inApp: false, apprise: true },
+        }),
+      });
+
+      const securityScanService = {
+        scan: vi.fn().mockResolvedValue({ blocked: true, source: "clamav", reason: "infected" }),
+      };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await manager.processImport("dl-1", "/remote/path");
+
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith(
+        "dl-1",
+        "quarantined",
+        "infected"
+      );
+      expect(storage.addNotification).not.toHaveBeenCalled();
+    });
+
+    it("does not mark the download quarantined when the move to quarantine fails", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Flagged Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/data/library" });
+      fsMock.move.mockRejectedValueOnce(new Error("disk full"));
+
+      const securityScanService = {
+        scan: vi.fn().mockResolvedValue({ blocked: true, source: "clamav", reason: "infected" }),
+      };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await manager.processImport("dl-1", "/remote/path");
+
+      // A failed move must never be swallowed into a false "quarantined" status —
+      // the file is still sitting at its original, unquarantined path.
+      expect(
+        storage.updateGameDownloadStatus.mock.calls.some(
+          ([id, status]) => id === "dl-1" && status === "quarantined"
+        )
+      ).toBe(false);
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith(
+        "dl-1",
+        "manual_review_required",
+        expect.stringContaining("disk full")
+      );
+    });
+
+    it("proceeds with the import when the scan does not block", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Clean Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/safe/root" });
+
+      const securityScanService = { scan: vi.fn().mockResolvedValue({ blocked: false }) };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await manager.processImport("dl-1", "/remote/path");
+
+      expect(securityScanService.scan).toHaveBeenCalled();
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith("dl-1", "imported");
+      expect(storage.updateGameDownloadStatus).not.toHaveBeenCalledWith(
+        "dl-1",
+        "quarantined",
+        expect.anything()
+      );
+    });
+
+    it("defaults to a pass-through scan when no securityScanService is provided", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Legacy Caller Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/safe/root" });
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never // NOSONAR
+      );
+
+      await manager.processImport("dl-1", "/remote/path");
+
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith("dl-1", "imported");
+    });
+
+    it("confirmImport rejects a download that is already quarantined", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+        status: "quarantined",
+      });
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never // NOSONAR
+      );
+
+      await expect(
+        manager.confirmImport("dl-1", {
+          strategy: "pc",
+          originalPath: "/downloads/source-folder",
+          proposedPath: "/safe/root/PC/Game",
+          needsReview: false,
+        })
+      ).rejects.toThrow("flagged by the security scan");
+      expect(fsMock.move).not.toHaveBeenCalled();
+    });
+
+    it("confirmImport quarantines and refuses to transfer when the scan blocks", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+        status: "manual_review_required",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Manually Confirmed Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/safe/root" });
+
+      const securityScanService = {
+        scan: vi.fn().mockResolvedValue({
+          blocked: true,
+          source: "clamav",
+          reason: "ClamAV detected Eicar-Test-Signature",
+        }),
+      };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await expect(
+        manager.confirmImport("dl-1", {
+          strategy: "pc",
+          originalPath: "/downloads/source-folder",
+          proposedPath: "/safe/root/PC/Game",
+          needsReview: false,
+        })
+      ).rejects.toThrow("ClamAV detected Eicar-Test-Signature");
+
+      expect(securityScanService.scan).toHaveBeenCalledWith("/downloads/source-folder");
+      expect(fsMock.move).toHaveBeenCalledWith(
+        "/downloads/source-folder",
+        expect.stringContaining(`${path.sep}.questarr-quarantine${path.sep}dl-1${path.sep}`),
+        { overwrite: true }
+      );
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith(
+        "dl-1",
+        "quarantined",
+        "ClamAV detected Eicar-Test-Signature"
+      );
+      expect(
+        storage.updateGameDownloadStatus.mock.calls.some(
+          ([id, status]) => id === "dl-1" && status === "imported"
+        )
+      ).toBe(false);
+    });
   });
 });

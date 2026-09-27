@@ -35,7 +35,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 
 ### Security
 
-- **Scan Disk endpoint**: bounded the recursive endpoint with a max file count, a time budget, and rate limiting, reducing its DoS exposure on very large directory trees (#1069).
+- **Scan Disk endpoint**: limited recursive traversal with a max file count and time budget, and added rate limiting, reducing DoS exposure on large directory trees (#1069).
 - **Postgres migration**: the connection string is no longer logged.
 - **Dependency Vulnerabilities**: Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
 - **Dependency Vulnerabilities**: Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).

@@ -657,15 +657,36 @@ export class ImportManager {
     const quarantineRoot = path.join(path.dirname(libraryRoot), ".questarr-quarantine");
     const quarantineDest = path.join(quarantineRoot, downloadId, path.basename(localPath));
 
+    // downloadId is a server-generated UUID and path.basename() can only ever
+    // contribute a single path segment, so quarantineDest can't actually escape
+    // quarantineRoot — but the guard is spelled out inline (matching
+    // assertWithinRoots's shape, condition and all) directly gating the
+    // fs.ensureDir/fs.move sinks below, so CodeQL's path-injection query
+    // recognizes it as sanitizing them in this same function.
+    const resolvedQuarantineRoot = path.resolve(quarantineRoot);
+    const resolvedQuarantineDest = path.resolve(quarantineDest);
+    const relativeToQuarantineRoot = path.relative(resolvedQuarantineRoot, resolvedQuarantineDest);
+
     let quarantinedPath = localPath;
-    try {
-      await fs.ensureDir(path.dirname(quarantineDest));
-      await fs.move(localPath, quarantineDest, { overwrite: true });
-      quarantinedPath = quarantineDest;
-    } catch (moveErr) {
+    if (
+      relativeToQuarantineRoot !== ".." &&
+      !relativeToQuarantineRoot.startsWith(".." + path.sep) &&
+      !path.isAbsolute(relativeToQuarantineRoot)
+    ) {
+      try {
+        await fs.ensureDir(path.dirname(resolvedQuarantineDest));
+        await fs.move(localPath, resolvedQuarantineDest, { overwrite: true });
+        quarantinedPath = resolvedQuarantineDest;
+      } catch (moveErr) {
+        logger.error(
+          { moveErr, downloadId, localPath },
+          "[ImportManager] Failed to move flagged download to quarantine — leaving it in place"
+        );
+      }
+    } else {
       logger.error(
-        { moveErr, downloadId, localPath },
-        "[ImportManager] Failed to move flagged download to quarantine — leaving it in place"
+        { downloadId, localPath, quarantineDest },
+        "[ImportManager] Computed quarantine path escaped the quarantine root — leaving the download in place"
       );
     }
 

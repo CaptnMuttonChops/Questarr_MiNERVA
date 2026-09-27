@@ -10,6 +10,10 @@ const securityScanLogger = logger.child({ module: "security-scan" });
 const VT_LOOKUP_TIMEOUT_MS = 10_000;
 const CLAMAV_CONNECT_TIMEOUT_MS = 10_000;
 const CLAMAV_CHUNK_SIZE = 64 * 1024;
+// Matches ImportManager's own MAX_LISTED_FILES cap. Without a limit, a directory
+// download with thousands of loose files would serialize that many sequential
+// ClamAV round-trips before an import could proceed.
+const MAX_CLAMAV_SCAN_FILES = 100;
 
 export interface VirusTotalSettings {
   enabled: boolean;
@@ -130,8 +134,10 @@ async function listAllFiles(localPath: string): Promise<string[]> {
 
   const files: string[] = [];
   const walk = async (dir: string): Promise<void> => {
+    if (files.length >= MAX_CLAMAV_SCAN_FILES) return;
     const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
     for (const entry of entries) {
+      if (files.length >= MAX_CLAMAV_SCAN_FILES) return;
       const entryPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(entryPath);
@@ -141,7 +147,7 @@ async function listAllFiles(localPath: string): Promise<string[]> {
     }
   };
   await walk(localPath);
-  return files;
+  return files.slice(0, MAX_CLAMAV_SCAN_FILES);
 }
 
 export type VirusTotalVerdict =
@@ -197,10 +203,16 @@ function scanFileWithClamAv(
     const socket = new net.Socket();
     let responseBuf = "";
     let settled = false;
+    // Referenced from `finish()` (not just the connect callback below) so a
+    // timeout or socket error can tear it down too — otherwise it keeps
+    // reading the file to EOF against an already-destroyed socket, leaking
+    // the file descriptor for as long as that takes.
+    let readStream: fs.ReadStream | null = null;
 
     const finish = (verdict: ClamAvVerdict) => {
       if (settled) return;
       settled = true;
+      readStream?.destroy();
       socket.destroy();
       resolve(verdict);
     };
@@ -212,7 +224,7 @@ function scanFileWithClamAv(
     socket.connect(port, connectAddress, () => {
       socket.write("zINSTREAM\0");
 
-      const readStream = fs.createReadStream(filePath, { highWaterMark: CLAMAV_CHUNK_SIZE });
+      readStream = fs.createReadStream(filePath, { highWaterMark: CLAMAV_CHUNK_SIZE });
       readStream.on("error", (err) => finish({ status: "error", error: err.message }));
       readStream.on("data", (chunk) => {
         const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
@@ -320,6 +332,12 @@ export class SecurityScanService {
       try {
         const connectAddress = await connectableClamAvAddress(clamAvSettings.host);
         const files = await listAllFiles(localPath);
+        if (files.length >= MAX_CLAMAV_SCAN_FILES) {
+          securityScanLogger.warn(
+            { localPath, limit: MAX_CLAMAV_SCAN_FILES },
+            "ClamAV scan capped at the file limit; remaining files were not scanned"
+          );
+        }
         for (const file of files) {
           const verdict = await scanFileWithClamAv(file, connectAddress, clamAvSettings.port);
           if (verdict.status === "infected") {

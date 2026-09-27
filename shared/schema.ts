@@ -607,7 +607,9 @@ function validateUserSettingsEnums(
     const typeOk =
       Array.isArray(raw) &&
       raw.every((item) =>
-        element === "number" ? typeof item === "number" : typeof item === "string"
+        element === "number"
+          ? typeof item === "number" && Number.isSafeInteger(item) && item > 0
+          : typeof item === "string"
       );
     if (!typeOk) {
       ctx.addIssue({

@@ -244,8 +244,13 @@ export default function DiscoverPage() {
     [platforms]
   );
   const displayPlatforms = useMemo<Platform[]>(() => {
-    const visible = visibleIgdbPlatforms(allPlatforms, userSettings?.importPlatformIds);
-    return visible.length > 0 ? visible : allPlatforms;
+    const selectedIds = userSettings?.importPlatformIds;
+    const visible = visibleIgdbPlatforms(allPlatforms, selectedIds);
+    // An empty selection means "no restriction" (fall back to every platform).
+    // A non-empty selection with zero overlap is a genuine result, not a
+    // loading artifact -- returning it (rather than falling back) keeps this
+    // in sync with the Library filter's identical distinction.
+    return Array.isArray(selectedIds) && selectedIds.length > 0 ? visible : allPlatforms;
   }, [allPlatforms, userSettings?.importPlatformIds]);
 
   // `selectedPlatform` defaults to "PC", which the Platforms setting may not

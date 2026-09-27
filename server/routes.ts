@@ -4705,14 +4705,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             socket.on("data", (chunk) => {
               data += chunk.toString("utf8");
+              // Accept PONG as soon as it arrives, rather than waiting for the
+              // socket to close — clamd isn't guaranteed to close the connection
+              // after replying, which would otherwise stall this check until
+              // the deadline even though the ping already succeeded.
+              if (data.includes("PONG")) {
+                finish({ success: true });
+              }
             });
             socket.on("close", () => {
               const reply = data.replace(/\0/g, "").trim();
-              if (reply.includes("PONG")) {
-                finish({ success: true });
-              } else {
-                finish({ success: false, error: reply || "No PONG reply from ClamAV" });
-              }
+              finish({ success: false, error: reply || "No PONG reply from ClamAV" });
             });
           });
           if (result.success) return res.json({ success: true });

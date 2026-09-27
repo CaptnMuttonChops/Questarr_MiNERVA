@@ -20,61 +20,22 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 
 ### Added
 
-- **Optional PostgreSQL backend**: Questarr can now run against PostgreSQL
-  instead of SQLite, selected via `DATABASE_URL`/config. Adds a Postgres
-  mirror of the Drizzle schema with parity guards, a dialect-aware
-  storage layer with both database implementations of the five
-  transactional operations, a `scripts/sqlite-to-pg.ts` data migration
-  script, a dual-dialect test suite (an in-memory Postgres via
-  `@electric-sql/pglite` for CI), and new `db:generate:pg` / `db:push:pg` /
-  `db:check:pg` npm scripts. See `docs/DATABASE.md`.
-- **AI sanity check before unattended auto-downloads**: auto-download now
-  runs an AI ("TypeSafe") legitimacy check before triggering, and puts a
-  suspicious match on hold for manual review — notified over Apprise —
-  instead of downloading it automatically. The check fails open (the
-  download proceeds) if the AI check itself errors, so a provider outage
-  never blocks legitimate auto-downloads.
+- **Optional PostgreSQL backend**: Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md`.
+- **AI auto-download sanity check**: a suspicious auto-download match is now held for manual review (notified over Apprise) instead of downloading automatically. Fails open if the check itself errors (#1077, #1078).
+- **Library filters**: added optional filters to hide shelved games and games already owned from search/discover results (#1089).
+- **Sidebar**: moved the xREL and RSS pages under Discover (#1086).
 
 ### Fixed
 
-- **Documentation**: corrected `docs/SECRETS.md` §8, which presented the
-  `pg-to-sqlite` credential-logging issue as still open. It was real in
-  **v1.1.0–v1.3.1**, which printed the full `DATABASE_URL` (embedding
-  `user:password@host`), and was fixed in **v1.4.0** by commit `99984867`; §8
-  was never updated when that landed, and its line reference had drifted onto
-  the already-fixed line. §8 now states the affected range, the fix, and that
-  **operators who ran the migration on an affected tag and retained the logs
-  should rotate that Postgres password.**
-- **Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s
-  own example commands, so they target the right project when copy-pasted.
-- **Calendar year view**: follow-up date-filtering fixes on top of the recent
-  performance optimization (see Changed, below).
-- Several Postgres-backend correctness bugs found in review on the new
-  dialect (PR #1046): non-null assertions on guaranteed-nonempty query
-  results, transaction bugs, unique-conflict handling in
-  `updateGameDownloadHash`, releasing the migration lock connection even
-  when unlocking fails, and gaps in the AI auto-download hold
-  notification/expiry logic (holds keyed by normalized title, ignoring a
-  legitimacy score with no size).
-
-### Changed
-
-- **Calendar year view**: optimized date filtering for performance.
+- **Documentation**: `docs/SECRETS.md` §8 wrongly said the `pg-to-sqlite` credential-logging issue was still open; it was fixed in v1.4.0. Now states the affected range (v1.1.0–v1.3.1) and that operators who kept logs from that range should rotate their Postgres password.
+- **Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s own example commands (#1084).
+- **Calendar**: follow-up fixes to the year view's date filtering.
+- Fixed several Postgres backend correctness bugs found in review, including transaction and unique-conflict handling gaps (#1046).
 
 ### Security
 
-- **Scan Disk endpoint hardening**: the recursive `Scan Disk` endpoint
-  (`GET /api/games/:gameId/files`) is now bounded by a maximum file count, a
-  wall-clock time budget, and rate limiting, reducing the resource cost of
-  walking very large or adversarial directory trees (CWE-400, Uncontrolled
-  Resource Consumption; issue #944). The traversal still reads one directory
-  level at a time before its per-entry checks apply, so a single directory
-  with an extreme number of entries is not fully bounded by this change.
-- **PostgreSQL connection string no longer logged**: the new
-  `scripts/sqlite-to-pg.ts` migration script and the Postgres storage layer
-  log nothing derived from the Postgres connection string, avoiding a repeat
-  of the credential-logging issue fixed in v1.4.0 for the old migrator
-  (CWE-532, Insertion of Sensitive Information into Log File).
+- **Scan Disk endpoint**: bounded the recursive endpoint with a max file count, a time budget, and rate limiting, reducing its DoS exposure on very large directory trees (#1069).
+- **Postgres migration**: the connection string is no longer logged.
 - **Dependency Vulnerabilities**: Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
 - **Dependency Vulnerabilities**: Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).
 - **Dependency Vulnerabilities**: Fixed a critical IP-spoofing vulnerability in `proxy-addr`, flagged by Aikido Intel.
@@ -91,6 +52,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 
 ### Changed
 
+- **Calendar**: optimized date filtering in the year view for performance (#1076).
 - Dependency updates: `undici` 7.29.0 → 8.9.0 (direct dependency, used by the SSRF-safe fetch wrapper in `server/ssrf.ts`). No vulnerability fix — see `docs/CVE_FIXES_BY_RELEASE.md` for verification. Major version bump; undici 8.9.0 requires Node `>=22.19.0`, so Questarr's own `engines.node` floor is raised from `>=20` to `>=22.19.0` to match — this only formalizes existing practice, since CI (`node-version: 26.x`) and the production Docker image (`node:26-alpine`) were already on Node 26. Full test suite and `server/__tests__/ssrf.test.ts` verified green against the new version.
 
 ## [1.4.2] - 2026-08-11

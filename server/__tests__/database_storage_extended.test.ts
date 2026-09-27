@@ -331,9 +331,33 @@ describe("DatabaseStorage Extended Coverage", () => {
         fileSize: null,
       } as InsertGameDownload);
 
+      // A second user's own quarantined download — proves the userId filter
+      // is actually applied, not just that a status filter happens to work.
+      const otherUserId = await createUser();
+      const otherGame = await storage.addGame({
+        title: "Other User's Game",
+        igdbId: 6002,
+        status: "wanted",
+        hidden: false,
+        userId: otherUserId,
+      } as InsertGame);
+      const otherQuarantined = await storage.addGameDownload({
+        gameId: otherGame.id,
+        downloaderId: downloader.id,
+        downloadHash: "hash-other-quarantined",
+        downloadTitle: "OtherFlagged-GROUP",
+        status: "downloading",
+        downloadType: "torrent",
+        fileSize: null,
+      } as InsertGameDownload);
+      await storage.updateGameDownloadStatus(otherQuarantined!.id, "quarantined");
+
       const results = await storage.getQuarantinedDownloads(userId);
       expect(results.map((d) => d.id)).toEqual([quarantined?.id]);
       expect(results[0].errorMessage).toBe("flagged by scan");
+
+      const otherResults = await storage.getQuarantinedDownloads(otherUserId);
+      expect(otherResults.map((d) => d.id)).toEqual([otherQuarantined?.id]);
     });
 
     it("relinkGameDownload reattaches the game and returns to manual_review_required", async () => {

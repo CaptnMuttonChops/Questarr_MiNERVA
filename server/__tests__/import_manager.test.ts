@@ -1361,8 +1361,16 @@ describe("ImportManager", () => {
           title: expect.stringContaining("VirusTotal"),
         })
       );
-      // The import must never proceed past quarantine.
-      expect(storage.updateGameDownloadStatus).not.toHaveBeenCalledWith("dl-1", "imported");
+      // The import must never proceed past quarantine. Checked by scanning all
+      // calls for this (id, status) pair regardless of any trailing argument,
+      // rather than toHaveBeenCalledWith("dl-1", "imported") — which only
+      // matches an exact-arity call and would silently pass if the status
+      // were ever set alongside an error message or other third argument.
+      expect(
+        storage.updateGameDownloadStatus.mock.calls.some(
+          ([id, status]) => id === "dl-1" && status === "imported"
+        )
+      ).toBe(false);
     });
 
     it("does not create a notification when the securityAlert.inApp preference is disabled", async () => {
@@ -1548,7 +1556,11 @@ describe("ImportManager", () => {
         "quarantined",
         "ClamAV detected Eicar-Test-Signature"
       );
-      expect(storage.updateGameDownloadStatus).not.toHaveBeenCalledWith("dl-1", "imported");
+      expect(
+        storage.updateGameDownloadStatus.mock.calls.some(
+          ([id, status]) => id === "dl-1" && status === "imported"
+        )
+      ).toBe(false);
     });
   });
 });

@@ -1379,6 +1379,8 @@ export class MemStorage implements IStorage {
       preferredPlatform: insertSettings.preferredPlatform ?? null,
       hideAdultContent: insertSettings.hideAdultContent ?? true,
       hideAgeRestrictedContent: insertSettings.hideAgeRestrictedContent ?? true,
+      hideShelvedByDefault: insertSettings.hideShelvedByDefault ?? true,
+      hideOwnedInHasResults: insertSettings.hideOwnedInHasResults ?? true,
       telemetryEnabled: insertSettings.telemetryEnabled ?? false,
       updatedAt: new Date(),
     };

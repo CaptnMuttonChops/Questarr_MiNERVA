@@ -8,7 +8,11 @@ import { safeFetch, resolveSafeAddress, normalizeHostname } from "./ssrf.js";
 const securityScanLogger = logger.child({ module: "security-scan" });
 
 const VT_LOOKUP_TIMEOUT_MS = 10_000;
-const CLAMAV_CONNECT_TIMEOUT_MS = 10_000;
+// A single absolute deadline covering connect through the final verdict —
+// deliberately not an idle timeout (like net.Socket's own setTimeout), which
+// resets on every read/write and so never fires while a slow clamd keeps
+// trickling bytes back and forth for an arbitrarily long time.
+const CLAMAV_SCAN_TIMEOUT_MS = 5 * 60 * 1000;
 const CLAMAV_CHUNK_SIZE = 64 * 1024;
 // Matches ImportManager's own MAX_LISTED_FILES cap. Without a limit, a directory
 // download with thousands of loose files would serialize that many sequential
@@ -181,7 +185,7 @@ export async function checkVirusTotalHash(
       data?: { attributes?: { last_analysis_stats?: { malicious?: number } } };
     };
     const positives = body.data?.attributes?.last_analysis_stats?.malicious ?? 0;
-    return { status: "flagged", positives };
+    return positives > 0 ? { status: "flagged", positives } : { status: "clean", positives };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { status: "error", error: message };
@@ -212,13 +216,17 @@ function scanFileWithClamAv(
     const finish = (verdict: ClamAvVerdict) => {
       if (settled) return;
       settled = true;
+      clearTimeout(deadline);
       readStream?.destroy();
       socket.destroy();
       resolve(verdict);
     };
 
-    socket.setTimeout(CLAMAV_CONNECT_TIMEOUT_MS);
-    socket.once("timeout", () => finish({ status: "error", error: "ClamAV connection timed out" }));
+    const deadline = setTimeout(
+      () => finish({ status: "error", error: "ClamAV scan exceeded the time limit" }),
+      CLAMAV_SCAN_TIMEOUT_MS
+    );
+
     socket.once("error", (err) => finish({ status: "error", error: err.message }));
 
     socket.connect(port, connectAddress, () => {
@@ -231,7 +239,13 @@ function scanFileWithClamAv(
         const sizeHeader = Buffer.alloc(4);
         sizeHeader.writeUInt32BE(buf.length, 0);
         socket.write(sizeHeader);
-        socket.write(buf);
+        // clamd can read slower than we produce chunks; without backpressure
+        // a large file would buffer entirely in the socket's internal write
+        // queue before clamd catches up.
+        if (!socket.write(buf)) {
+          readStream?.pause();
+          socket.once("drain", () => readStream?.resume());
+        }
       });
       readStream.on("end", () => {
         const zeroLength = Buffer.alloc(4);

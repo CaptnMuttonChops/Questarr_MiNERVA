@@ -88,6 +88,13 @@ export default function SecurityScanSettings() {
     );
   }
 
+  // The Test buttons hit the server's saved configuration, not these local,
+  // possibly-unsaved edits — disable them (rather than silently testing stale
+  // values) whenever the form has diverged from what's actually persisted.
+  const isDirty = !!settings && JSON.stringify(local) !== JSON.stringify(settings);
+  const testDisabled = testMutation.isPending || isDirty;
+  const testTitle = isDirty ? "Save your changes before testing" : undefined;
+
   return (
     <div className="space-y-4">
       <Card>
@@ -148,7 +155,8 @@ export default function SecurityScanSettings() {
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={testMutation.isPending}
+                    disabled={testDisabled}
+                    title={testTitle}
                     onClick={() => testMutation.mutate("virustotal")}
                   >
                     Test
@@ -258,7 +266,8 @@ export default function SecurityScanSettings() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={testMutation.isPending}
+                  disabled={testDisabled}
+                  title={testTitle}
                   onClick={() => testMutation.mutate("clamav")}
                 >
                   Test

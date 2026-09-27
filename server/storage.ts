@@ -2368,6 +2368,7 @@ export class DatabaseStorage implements IStorage {
             "imported",
             "manual_review_required",
             GAME_LINK_REQUIRED_STATUS,
+            QUARANTINED_STATUS,
           ])
         )
       );

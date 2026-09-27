@@ -106,7 +106,17 @@ import {
   normalizeAppriseMode,
   readAppriseSettings,
 } from "./apprise.js";
-import { readVirusTotalSettings, readClamAvSettings } from "./security-scan.js";
+import {
+  readVirusTotalSettings,
+  readClamAvSettings,
+  checkVirusTotalHash,
+} from "./security-scan.js";
+
+// SHA-256 of the standard EICAR antivirus test file — a publicly known,
+// non-sensitive constant that VirusTotal has scanned so many times it is
+// guaranteed to return a verdict, giving a stable way to confirm an API key
+// authenticates without needing a real sample or hardcoding it in a URL path.
+const EICAR_TEST_FILE_SHA256 = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0";
 import net from "node:net";
 import multer from "multer";
 import path from "path";
@@ -4557,7 +4567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Security & Scanning settings (Settings > Post-Processing > Security & Scanning)
-  app.get("/api/settings/security-scan", async (_req, res) => {
+  app.get("/api/settings/security-scan", sensitiveEndpointLimiter, async (_req, res) => {
     try {
       const [vt, clamav] = await Promise.all([
         readVirusTotalSettings(storage),
@@ -4582,7 +4592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/settings/security-scan", async (req, res) => {
+  app.post("/api/settings/security-scan", sensitiveEndpointLimiter, async (req, res) => {
     try {
       const body = req.body as {
         virusTotal?: {
@@ -4645,7 +4655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/settings/security-scan/test", async (req, res) => {
+  app.post("/api/settings/security-scan/test", sensitiveEndpointLimiter, async (req, res) => {
     try {
       const { provider } = req.body as { provider?: string };
 
@@ -4654,25 +4664,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!vt.apiKey) {
           return res.status(400).json({ error: "No VirusTotal API key configured" });
         }
-        try {
-          const vtRes = await safeFetch(
-            `https://www.virustotal.com/api/v3/users/${encodeURIComponent(vt.apiKey)}`,
-            {
-              method: "GET",
-              headers: { "x-apikey": vt.apiKey },
-              timeoutMs: 10_000,
-              requireHttps: true,
-            }
-          );
-          if (vtRes.ok) return res.json({ success: true });
-          if (vtRes.status === 401 || vtRes.status === 403) {
-            return res.status(502).json({ error: "VirusTotal rejected the API key" });
-          }
-          return res.status(502).json({ error: `VirusTotal responded with ${vtRes.status}` });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return res.status(502).json({ error: message });
+        // Looks up a fixed, publicly known hash rather than an account-info
+        // endpoint keyed by the API key itself — that would put the secret in
+        // the URL path, where it can end up in proxy or access logs.
+        const verdict = await checkVirusTotalHash(EICAR_TEST_FILE_SHA256, vt.apiKey);
+        if (verdict.status === "error") {
+          return res.status(502).json({ error: verdict.error });
         }
+        return res.json({ success: true });
       }
 
       if (provider === "clamav") {
@@ -4684,14 +4683,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { address } = await resolveSafeAddress(normalizeHostname(clamav.host), true);
           const result = await new Promise<{ success: boolean; error?: string }>((resolve) => {
             const socket = new net.Socket();
-            socket.setTimeout(10_000);
-            socket.once("timeout", () => {
+            let settled = false;
+            const finish = (outcome: { success: boolean; error?: string }) => {
+              if (settled) return;
+              settled = true;
               socket.destroy();
-              resolve({ success: false, error: "Connection to ClamAV timed out" });
-            });
-            socket.once("error", (err) => {
-              resolve({ success: false, error: err.message });
-            });
+              resolve(outcome);
+            };
+            socket.setTimeout(10_000);
+            socket.once("timeout", () =>
+              finish({ success: false, error: "Connection to ClamAV timed out" })
+            );
+            socket.once("error", (err) => finish({ success: false, error: err.message }));
             let data = "";
             socket.connect(clamav.port, address, () => {
               socket.write("zPING\0");
@@ -4702,9 +4705,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             socket.on("close", () => {
               const reply = data.replace(/\0/g, "").trim();
               if (reply.includes("PONG")) {
-                resolve({ success: true });
+                finish({ success: true });
               } else {
-                resolve({ success: false, error: reply || "No PONG reply from ClamAV" });
+                finish({ success: false, error: reply || "No PONG reply from ClamAV" });
               }
             });
           });

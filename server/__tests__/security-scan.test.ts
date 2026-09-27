@@ -197,6 +197,18 @@ describe("checkVirusTotalHash", () => {
     });
   });
 
+  it("returns 'clean' when VirusTotal reports zero detections", async () => {
+    vi.mocked(safeFetch).mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => ({ data: { attributes: { last_analysis_stats: { malicious: 0 } } } }),
+    } as never);
+    await expect(checkVirusTotalHash("hash", "key")).resolves.toEqual({
+      status: "clean",
+      positives: 0,
+    });
+  });
+
   it("returns 'error' on a non-ok, non-404 response", async () => {
     vi.mocked(safeFetch).mockResolvedValue({ status: 500, ok: false } as never);
     const result = await checkVirusTotalHash("hash", "key");

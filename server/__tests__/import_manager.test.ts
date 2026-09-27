@@ -1365,6 +1365,48 @@ describe("ImportManager", () => {
       expect(storage.updateGameDownloadStatus).not.toHaveBeenCalledWith("dl-1", "imported");
     });
 
+    it("does not create a notification when the securityAlert.inApp preference is disabled", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Flagged Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/data/library" });
+      storage.getUserSettings.mockResolvedValue({
+        notificationPreferences: JSON.stringify({
+          securityAlert: { inApp: false, apprise: true },
+        }),
+      });
+
+      const securityScanService = {
+        scan: vi.fn().mockResolvedValue({ blocked: true, source: "clamav", reason: "infected" }),
+      };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await manager.processImport("dl-1", "/remote/path");
+
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith(
+        "dl-1",
+        "quarantined",
+        "infected"
+      );
+      expect(storage.addNotification).not.toHaveBeenCalled();
+    });
+
     it("proceeds with the import when the scan does not block", async () => {
       storage.getGameDownload.mockResolvedValue({
         id: "dl-1",
@@ -1426,6 +1468,87 @@ describe("ImportManager", () => {
       await manager.processImport("dl-1", "/remote/path");
 
       expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith("dl-1", "imported");
+    });
+
+    it("confirmImport rejects a download that is already quarantined", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+        status: "quarantined",
+      });
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never // NOSONAR
+      );
+
+      await expect(
+        manager.confirmImport("dl-1", {
+          strategy: "pc",
+          originalPath: "/downloads/source-folder",
+          proposedPath: "/safe/root/PC/Game",
+          needsReview: false,
+        })
+      ).rejects.toThrow("flagged by the security scan");
+      expect(fsMock.move).not.toHaveBeenCalled();
+    });
+
+    it("confirmImport quarantines and refuses to transfer when the scan blocks", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+        status: "manual_review_required",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Manually Confirmed Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/safe/root" });
+
+      const securityScanService = {
+        scan: vi.fn().mockResolvedValue({
+          blocked: true,
+          source: "clamav",
+          reason: "ClamAV detected Eicar-Test-Signature",
+        }),
+      };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await expect(
+        manager.confirmImport("dl-1", {
+          strategy: "pc",
+          originalPath: "/downloads/source-folder",
+          proposedPath: "/safe/root/PC/Game",
+          needsReview: false,
+        })
+      ).rejects.toThrow("ClamAV detected Eicar-Test-Signature");
+
+      expect(securityScanService.scan).toHaveBeenCalledWith("/downloads/source-folder");
+      expect(fsMock.move).toHaveBeenCalledWith(
+        "/downloads/source-folder",
+        expect.stringContaining(`${path.sep}.questarr-quarantine${path.sep}dl-1${path.sep}`),
+        { overwrite: true }
+      );
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith(
+        "dl-1",
+        "quarantined",
+        "ClamAV detected Eicar-Test-Signature"
+      );
+      expect(storage.updateGameDownloadStatus).not.toHaveBeenCalledWith("dl-1", "imported");
     });
   });
 });

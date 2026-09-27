@@ -3931,7 +3931,11 @@ describe("API Routes - Extended Coverage", () => {
 
     it("tests the VirusTotal API key successfully", async () => {
       securityScanState["security.vt.apiKey"] = "valid-key";
-      vi.spyOn(ssrfModule, "safeFetch").mockResolvedValue({ ok: true, status: 200 } as never);
+      vi.spyOn(ssrfModule, "safeFetch").mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { attributes: { last_analysis_stats: { malicious: 0 } } } }),
+      } as never);
 
       const response = await request(app)
         .post("/api/settings/security-scan/test")
@@ -3939,6 +3943,12 @@ describe("API Routes - Extended Coverage", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      // Confirms the fix for the API-key-in-URL finding: the key must never
+      // appear in the request path, only in the x-apikey header.
+      expect(ssrfModule.safeFetch).toHaveBeenCalledWith(
+        expect.not.stringContaining("valid-key"),
+        expect.objectContaining({ headers: { "x-apikey": "valid-key" } })
+      );
     });
 
     it("reports an invalid VirusTotal API key", async () => {

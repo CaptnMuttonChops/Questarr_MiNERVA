@@ -681,20 +681,27 @@ export class ImportManager {
     );
 
     try {
-      const providerLabel = scanResult.source === "virustotal" ? "VirusTotal" : "ClamAV";
-      const notification = await this.storage.addNotification({
-        userId: game.userId ?? undefined,
-        type: "error",
-        title: `Security Alert: Download Flagged by ${providerLabel}`,
-        message: `"${game.title}" was flagged and quarantined. ${scanResult.reason ?? ""}`.trim(),
-        link: "/downloads",
-      });
-      notifyUser("notification", notification);
-
       const userSettings = await this.storage.getUserSettings(game.userId ?? "");
       const prefs = resolvePrefs(userSettings);
-      if (prefs.securityAlert.apprise) {
-        await appriseClient.send(notification);
+
+      // Matches the gating convention used throughout cron.ts (e.g. the
+      // downloadCompleted notification): the in-app preference guards
+      // creating the notification at all, and apprise dispatch is a nested
+      // check on top of that.
+      if (prefs.securityAlert.inApp) {
+        const providerLabel = scanResult.source === "virustotal" ? "VirusTotal" : "ClamAV";
+        const notification = await this.storage.addNotification({
+          userId: game.userId ?? undefined,
+          type: "error",
+          title: `Security Alert: Download Flagged by ${providerLabel}`,
+          message: `"${game.title}" was flagged and quarantined. ${scanResult.reason ?? ""}`.trim(),
+          link: "/downloads",
+        });
+        notifyUser("notification", notification);
+
+        if (prefs.securityAlert.apprise) {
+          await appriseClient.send(notification);
+        }
       }
     } catch (notifyErr) {
       logger.error(
@@ -1006,6 +1013,14 @@ export class ImportManager {
       throw new Error(`Download ${downloadId} not found`);
     }
 
+    // Defense in depth: the client hides the Review action for a quarantined
+    // download, but that's a UI convenience, not the security boundary — this
+    // endpoint must independently refuse to transfer a file the scan already
+    // flagged, regardless of what the caller submits as a plan.
+    if (download.status === QUARANTINED_STATUS) {
+      throw new Error("This download was flagged by the security scan and cannot be imported.");
+    }
+
     if (!overridePlan) {
       throw new Error("Confirmation requires a plan");
     }
@@ -1039,6 +1054,21 @@ export class ImportManager {
     }
 
     const config = await this.storage.getImportConfig(game.userId ?? undefined);
+
+    // The same gate processImport runs before any automatic transfer — a manual
+    // confirmation is still a transfer, so it must not be a way to route a
+    // flagged file into the library without ever being scanned.
+    const scanResult = await this.securityScanService.scan(resolvedOriginalPath);
+    if (scanResult.blocked) {
+      await this.quarantineDownload(
+        downloadId,
+        game,
+        resolvedOriginalPath,
+        scanResult,
+        config.libraryRoot || "/data"
+      );
+      throw new Error(scanResult.reason ?? "Flagged by security scan");
+    }
 
     if (!overridePlan.proposedPath) {
       throw new Error("Proposed path is required for import validation");

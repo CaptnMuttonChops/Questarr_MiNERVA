@@ -169,4 +169,19 @@ describe("SecurityScanSettings", () => {
     fireEvent.click(switches[0]);
     expect(switches[0]).toHaveAttribute("aria-checked", "true");
   });
+
+  it("disables the Test buttons once the form has unsaved changes", async () => {
+    renderComponent();
+    await screen.findByText("VirusTotal (Hash-Based)");
+
+    for (const button of screen.getAllByRole("button", { name: "Test" })) {
+      expect(button).not.toBeDisabled();
+    }
+
+    fireEvent.change(screen.getByLabelText("API Key"), { target: { value: "editing..." } });
+
+    for (const button of screen.getAllByRole("button", { name: "Test" })) {
+      expect(button).toBeDisabled();
+    }
+  });
 });

@@ -729,7 +729,7 @@ export class MemStorage implements IStorage {
 
   async deleteGameJournalEntry(id: string, userId: string): Promise<boolean> {
     const entry = this.gameJournalEntries.get(id);
-    if (!entry || entry.userId !== userId) return false;
+    if (entry?.userId !== userId) return false;
     return this.gameJournalEntries.delete(id);
   }
 
@@ -758,7 +758,7 @@ export class MemStorage implements IStorage {
     completed: boolean
   ): Promise<GameMilestone | undefined> {
     const milestone = this.gameMilestones.get(id);
-    if (!milestone || milestone.userId !== userId) return undefined;
+    if (milestone?.userId !== userId) return undefined;
 
     const updated: GameMilestone = { ...milestone, completedAt: completed ? new Date() : null };
     this.gameMilestones.set(id, updated);
@@ -801,7 +801,7 @@ export class MemStorage implements IStorage {
     caption: string | null
   ): Promise<GameScreenshot | undefined> {
     const screenshot = this.gameScreenshots.get(id);
-    if (!screenshot || screenshot.userId !== userId) return undefined;
+    if (screenshot?.userId !== userId) return undefined;
 
     const updated: GameScreenshot = { ...screenshot, caption };
     this.gameScreenshots.set(id, updated);
@@ -810,7 +810,7 @@ export class MemStorage implements IStorage {
 
   async deleteGameScreenshot(id: string, userId: string): Promise<GameScreenshot | undefined> {
     const screenshot = this.gameScreenshots.get(id);
-    if (!screenshot || screenshot.userId !== userId) return undefined;
+    if (screenshot?.userId !== userId) return undefined;
     this.gameScreenshots.delete(id);
     return screenshot;
   }

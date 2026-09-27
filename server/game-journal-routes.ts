@@ -1,16 +1,16 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
-import { randomUUID } from "crypto";
+import path from "node:path";
+import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { fileTypeFromBuffer } from "file-type";
 import { storage } from "./storage.js";
 import { authenticateToken } from "./auth.js";
 import { configLoader } from "./config-loader.js";
 import { routesLogger } from "./logger.js";
-import { sensitiveEndpointLimiter } from "./middleware.js";
 import {
+  sensitiveEndpointLimiter,
   sanitizeGameId,
   sanitizeJournalEntryId,
   sanitizeMilestoneId,

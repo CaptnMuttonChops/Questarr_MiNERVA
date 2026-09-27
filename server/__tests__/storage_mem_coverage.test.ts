@@ -293,6 +293,26 @@ describe("MemStorage - Game update methods", () => {
       await storage.updateGameMilestone(milestone.id, "some-other-game", "u1", true)
     ).toBeUndefined();
     expect(await storage.deleteGameMilestone(milestone.id, "some-other-game", "u1")).toBe(false);
+
+    const unchanged = await storage.getGameMilestones(gameId, "u1");
+    expect(unchanged).toHaveLength(1);
+    expect(unchanged[0]?.completedAt).toBeNull();
+  });
+
+  it("updateGameScreenshotCaption returns undefined for the same user's other game", async () => {
+    const screenshot = await storage.addGameScreenshot({
+      gameId,
+      userId: "u1",
+      filePath: "/data/screenshots/example.png",
+      caption: "Original caption",
+    });
+    expect(
+      await storage.updateGameScreenshotCaption(screenshot.id, "some-other-game", "u1", "Hijacked")
+    ).toBeUndefined();
+
+    const unchanged = await storage.getGameScreenshots(gameId, "u1");
+    expect(unchanged).toHaveLength(1);
+    expect(unchanged[0]?.caption).toBe("Original caption");
   });
 
   it("updateGameSearchResultsAvailable sets the flag", async () => {

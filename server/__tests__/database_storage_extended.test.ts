@@ -214,6 +214,8 @@ describe("DatabaseStorage Extended Coverage", () => {
       expect(
         await storage.updateGameMilestone(milestone.id, otherGame.id, userId, true)
       ).toBeUndefined();
+      const unchangedMilestones = await storage.getGameMilestones(game.id, userId);
+      expect(unchangedMilestones[0]?.completedAt).toBeNull();
       const completed = await storage.updateGameMilestone(milestone.id, game.id, userId, true);
       expect(completed?.completedAt).not.toBeNull();
       expect(await storage.deleteGameMilestone(milestone.id, otherGame.id, userId)).toBe(false);
@@ -228,6 +230,8 @@ describe("DatabaseStorage Extended Coverage", () => {
       expect(
         await storage.updateGameScreenshotCaption(screenshot.id, otherGame.id, userId, "Wrong game")
       ).toBeUndefined();
+      const unchangedScreenshots = await storage.getGameScreenshots(game.id, userId);
+      expect(unchangedScreenshots[0]?.caption).toBeNull();
       const captioned = await storage.updateGameScreenshotCaption(
         screenshot.id,
         game.id,

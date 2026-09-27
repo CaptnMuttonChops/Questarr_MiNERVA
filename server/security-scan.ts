@@ -133,6 +133,15 @@ async function resolvePrimaryFile(localPath: string): Promise<string | null> {
 interface ListAllFilesResult {
   files: string[];
   truncated: boolean;
+  // Set when a readdir/stat call failed for a reason other than the path simply
+  // not existing (e.g. EACCES, ENOTDIR). Swallowing those as an empty directory
+  // would let scan() report a clean verdict without ever examining files it
+  // could not enumerate, so callers must treat this the same as `truncated`.
+  incomplete: boolean;
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
 }
 
 // Enumerates one file beyond the scan cap so a directory with exactly
@@ -140,16 +149,37 @@ interface ListAllFilesResult {
 // more — the latter must be reported as truncated so the caller can refuse to
 // treat a partially-scanned directory as clean.
 async function listAllFiles(localPath: string): Promise<ListAllFilesResult> {
-  const stat = await fs.stat(localPath).catch(() => null);
-  if (!stat) return { files: [], truncated: false };
-  if (stat.isFile()) return { files: [localPath], truncated: false };
-  if (!stat.isDirectory()) return { files: [], truncated: false };
+  let stat;
+  try {
+    stat = await fs.stat(localPath);
+  } catch (error) {
+    if (isMissingPathError(error)) return { files: [], truncated: false, incomplete: false };
+    securityScanLogger.warn(
+      { error, localPath },
+      "Could not stat download path; treating scan as incomplete"
+    );
+    return { files: [], truncated: false, incomplete: true };
+  }
+  if (stat.isFile()) return { files: [localPath], truncated: false, incomplete: false };
+  if (!stat.isDirectory()) return { files: [], truncated: false, incomplete: false };
 
   const enumerationLimit = MAX_CLAMAV_SCAN_FILES + 1;
   const files: string[] = [];
+  let incomplete = false;
   const walk = async (dir: string): Promise<void> => {
     if (files.length >= enumerationLimit) return;
-    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch (error) {
+      if (isMissingPathError(error)) return;
+      securityScanLogger.warn(
+        { error, dir },
+        "Could not enumerate directory; treating scan as incomplete"
+      );
+      incomplete = true;
+      return;
+    }
     for (const entry of entries) {
       if (files.length >= enumerationLimit) return;
       const entryPath = path.join(dir, entry.name);
@@ -164,6 +194,7 @@ async function listAllFiles(localPath: string): Promise<ListAllFilesResult> {
   return {
     files: files.slice(0, MAX_CLAMAV_SCAN_FILES),
     truncated: files.length > MAX_CLAMAV_SCAN_FILES,
+    incomplete,
   };
 }
 
@@ -358,19 +389,22 @@ export class SecurityScanService {
     if (clamAvSettings.enabled && clamAvSettings.host) {
       try {
         const connectAddress = await connectableClamAvAddress(clamAvSettings.host);
-        const { files, truncated } = await listAllFiles(localPath);
-        if (truncated) {
-          // A partially-scanned directory must never be treated as clean —
-          // an infected file past the enumeration cap would otherwise bypass
-          // ClamAV entirely and be imported along with everything else.
+        const { files, truncated, incomplete } = await listAllFiles(localPath);
+        if (truncated || incomplete) {
+          // A partially- or incompletely-scanned directory must never be treated
+          // as clean — an infected file past the enumeration cap, or hidden behind
+          // a directory ClamAV's scanner couldn't read, would otherwise bypass
+          // scanning entirely and be imported along with everything else.
           securityScanLogger.warn(
-            { localPath, limit: MAX_CLAMAV_SCAN_FILES },
-            "ClamAV scan capped at the file limit; blocking rather than scanning only a subset"
+            { localPath, limit: MAX_CLAMAV_SCAN_FILES, truncated, incomplete },
+            "ClamAV scan could not examine every file; blocking rather than treating a partial scan as clean"
           );
           return {
             blocked: true,
             source: "clamav",
-            reason: "ClamAV could not scan every file in this download",
+            reason: incomplete
+              ? "ClamAV scan could not enumerate every file in this download"
+              : "ClamAV could not scan every file in this download",
           };
         }
         for (const file of files) {

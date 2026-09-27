@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
+import fsExtra from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -391,5 +392,44 @@ describe("SecurityScanService.scan", () => {
     // No file should have been scanned — a partial scan must never be
     // reported as "no infection found" instead of "not fully checked".
     expect(clamAvTestState.createdSockets.length).toBe(0);
+  });
+
+  it("blocks rather than treating an unreadable subdirectory as empty", async () => {
+    const dir = path.join(tmpDir, "release-with-locked-subdir");
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, "readme.txt"), "hello");
+    const lockedDir = path.join(dir, "payload");
+    fs.mkdirSync(lockedDir);
+    fs.writeFileSync(path.join(lockedDir, "hidden.exe"), "x");
+
+    const originalReaddir = fsExtra.readdir.bind(fsExtra);
+    const readdirSpy = vi
+      .spyOn(fsExtra, "readdir")
+      .mockImplementation(async (dirPath: fs.PathLike, options?: unknown) => {
+        if (dirPath === lockedDir) {
+          const error = new Error("EACCES: permission denied") as NodeJS.ErrnoException;
+          error.code = "EACCES";
+          throw error;
+        }
+        return (originalReaddir as (p: fs.PathLike, o?: unknown) => Promise<unknown>)(
+          dirPath,
+          options
+        ) as never;
+      });
+
+    try {
+      vi.mocked(resolveSafeAddress).mockResolvedValue({ address: "10.0.0.5", family: 4 });
+      const service = new SecurityScanService(
+        mockStorage({ "security.clamav.enabled": "true", "security.clamav.host": "clamav" })
+      );
+      const result = await service.scan(dir);
+      expect(result.blocked).toBe(true);
+      expect(result.source).toBe("clamav");
+      // The unreadable subdirectory must never be silently treated as
+      // empty — that would let a file hidden inside it bypass scanning.
+      expect(clamAvTestState.createdSockets.length).toBe(0);
+    } finally {
+      readdirSpy.mockRestore();
+    }
   });
 });

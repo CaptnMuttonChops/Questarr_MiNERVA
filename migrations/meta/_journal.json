@@ -281,6 +281,13 @@
       "when": 1790463787724,
       "tag": "0038_cuddly_roland_deschain",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1790493486714,
+      "tag": "0039_dapper_newton_destine",
+      "breakpoints": true
     }
   ]
 }

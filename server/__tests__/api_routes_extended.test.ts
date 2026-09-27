@@ -660,6 +660,53 @@ describe("API Routes - Additional Coverage", () => {
       expect(storage.updateGamesBatch).toHaveBeenCalled();
     });
 
+    it("persists IGDB expansions/DLC metadata returned by formatGameData", async () => {
+      vi.mocked(storage.getUserGames).mockResolvedValue([
+        { id: "g1", igdbId: 42, title: "Old Title" },
+      ] as unknown as Game[]);
+      vi.mocked(igdbClient.getGamesByIds).mockResolvedValue([
+        { id: 42, name: "New Title" },
+      ] as never);
+      vi.mocked(igdbClient.formatGameData).mockReturnValue({
+        publishers: [],
+        developers: [],
+        summary: "",
+        rating: null,
+        genres: [],
+        platforms: [],
+        coverUrl: "",
+        screenshots: [],
+        releaseDate: "",
+        earlyAccess: false,
+        igdbWebsites: [],
+        expansions: [
+          {
+            id: 7,
+            name: "Some Expansion",
+            coverUrl: "https://example.com/cover.jpg",
+            releaseDate: "2024-01-01",
+            category: "dlc",
+            gameType: 2,
+            igdbUrl: "https://www.igdb.com/games/some-expansion",
+          },
+        ],
+        aggregatedRating: undefined,
+      });
+
+      const res = await request(app).post("/api/games/refresh-metadata");
+      expect(res.status).toBe(200);
+      expect(storage.updateGamesBatch).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: "g1",
+          data: expect.objectContaining({
+            expansions: [
+              expect.objectContaining({ id: 7, name: "Some Expansion", category: "dlc" }),
+            ],
+          }),
+        }),
+      ]);
+    });
+
     it("handles users with no games gracefully", async () => {
       vi.mocked(storage.getUserGames).mockResolvedValue([]);
       const res = await request(app).post("/api/games/refresh-metadata");

@@ -70,6 +70,7 @@ import {
   Image,
   Link,
   File,
+  Layers,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -150,6 +151,14 @@ function scoreColor(score: number): string {
   if (score >= 6.0) return "bg-amber-500 text-white";
   return "bg-red-600 text-white";
 }
+
+const EXPANSION_CATEGORY_LABELS: Record<string, string> = {
+  main: "Main",
+  dlc: "DLC",
+  update: "Update",
+  extra: "Extra",
+  packs: "Packs",
+};
 
 // ── Website links config ──────────────────────────────────────────────────────
 
@@ -1160,6 +1169,20 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
             </TooltipTrigger>
             <TooltipContent className="sm:hidden">Media</TooltipContent>
           </Tooltip>
+          {game.expansions && game.expansions.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TabsTrigger value="dlc" aria-label="DLC" className="gap-1.5">
+                  <Layers className="h-3.5 w-3.5 sm:hidden" />
+                  <span className="hidden sm:inline">DLC</span>
+                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
+                    {game.expansions.length}
+                  </Badge>
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent className="sm:hidden">DLC</TooltipContent>
+            </Tooltip>
+          )}
           {!isDiscoveryId(game.id) && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1480,6 +1503,80 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
             </div>
           </ScrollArea>
         </TabsContent>
+
+        {/* ── DLC tab ── */}
+        {game.expansions && game.expansions.length > 0 && (
+          <TabsContent
+            value="dlc"
+            forceMount
+            className="flex-1 min-h-0 data-[state=inactive]:hidden"
+          >
+            <ScrollArea className="h-full">
+              <div className="pr-4 pb-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {game.expansions.map((expansion) => {
+                    const content = (
+                      <>
+                        <div className="w-full aspect-[3/4] bg-muted overflow-hidden">
+                          {expansion.coverUrl ? (
+                            <img
+                              src={expansion.coverUrl}
+                              alt={expansion.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Layers className="w-8 h-8 text-muted-foreground opacity-40" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2.5 space-y-1">
+                          <p className="text-sm font-medium truncate" title={expansion.name}>
+                            {expansion.name}
+                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            {expansion.releaseDate ? (
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(expansion.releaseDate).getFullYear()}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            <Badge variant="secondary" className="px-1.5 py-0 text-xs capitalize">
+                              {EXPANSION_CATEGORY_LABELS[expansion.category] ?? expansion.category}
+                            </Badge>
+                          </div>
+                        </div>
+                      </>
+                    );
+                    const className =
+                      "shadcn-card overflow-hidden rounded-xl border bg-card border-card-border text-card-foreground shadow-sm block";
+                    return expansion.igdbUrl ? (
+                      <a
+                        key={expansion.id}
+                        href={safeUrl(expansion.igdbUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(className, "hover-elevate cursor-pointer")}
+                        data-testid={`dlc-${expansion.id}`}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <div
+                        key={expansion.id}
+                        className={className}
+                        data-testid={`dlc-${expansion.id}`}
+                      >
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        )}
 
         {/* ── Files tab ── */}
         <TabsContent

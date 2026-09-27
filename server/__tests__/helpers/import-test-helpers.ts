@@ -33,6 +33,7 @@ export function makeGame(overrides: Partial<Game> = {}): Game {
     completedAt: null,
     source: null,
     igdbWebsites: null,
+    expansions: null,
     aggregatedRating: null,
     timeToBeatHastily: null,
     timeToBeatNormally: null,

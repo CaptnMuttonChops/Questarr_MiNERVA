@@ -20,6 +20,14 @@ interface PendingImport {
   passwordRequired?: boolean;
 }
 
+function describeImportError(item: PendingImport): string | null | undefined {
+  if (!item.errorMessage) return item.errorMessage;
+  if (item.status === QUARANTINED_STATUS) return `Security alert: ${item.errorMessage}`;
+  if (item.status === GAME_LINK_REQUIRED_STATUS) return item.errorMessage;
+  if (item.passwordRequired) return `Password required: ${item.errorMessage}`;
+  return `Import failed: ${item.errorMessage}`;
+}
+
 export default function PendingImportsCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -124,13 +132,7 @@ export default function PendingImportsCard() {
                         className="text-xs text-destructive truncate max-w-[300px]"
                         title={item.errorMessage}
                       >
-                        {item.status === QUARANTINED_STATUS
-                          ? `Security alert: ${item.errorMessage}`
-                          : item.status === GAME_LINK_REQUIRED_STATUS
-                            ? item.errorMessage
-                            : item.passwordRequired
-                              ? `Password required: ${item.errorMessage}`
-                              : `Import failed: ${item.errorMessage}`}
+                        {describeImportError(item)}
                       </p>
                     )}
                   </div>

@@ -241,6 +241,19 @@ export type ClamAvVerdict =
   | { status: "infected"; signature: string }
   | { status: "error"; error: string };
 
+/** Strips clamd's "stream: " prefix and trailing " FOUND" from an INSTREAM reply. */
+function extractClamAvSignature(reply: string): string {
+  let signature = reply.trim();
+  const prefixEnd = signature.indexOf(":");
+  if (signature.toLowerCase().startsWith("stream:") && prefixEnd !== -1) {
+    signature = signature.slice(prefixEnd + 1).trimStart();
+  }
+  if (signature.endsWith("FOUND")) {
+    signature = signature.slice(0, -"FOUND".length).trimEnd();
+  }
+  return signature;
+}
+
 /** Streams a single file to clamd over its INSTREAM protocol and parses the verdict. */
 function scanFileWithClamAv(
   filePath: string,
@@ -303,12 +316,9 @@ function scanFileWithClamAv(
 
     socket.on("close", () => {
       if (settled) return;
-      const reply = responseBuf.replace(/\0/g, "").trim();
+      const reply = responseBuf.replaceAll("\0", "").trim();
       if (reply.includes("FOUND")) {
-        const signature = reply
-          .replace(/^stream:\s*/, "")
-          .replace(/\s*FOUND$/, "")
-          .trim();
+        const signature = extractClamAvSignature(reply);
         finish({ status: "infected", signature: signature || "unknown signature" });
       } else if (reply.includes("OK")) {
         finish({ status: "clean" });
@@ -340,97 +350,113 @@ export class SecurityScanService {
   constructor(private readonly storage: SecurityScanServiceDeps) {}
 
   async scan(localPath: string): Promise<ScanResult> {
+    const vtResult = await this.runVirusTotalCheck(localPath);
+    if (vtResult) return vtResult;
+
+    const clamAvResult = await this.runClamAvCheck(localPath);
+    if (clamAvResult) return clamAvResult;
+
+    return { blocked: false };
+  }
+
+  /** Returns a blocking ScanResult, or null when VirusTotal is disabled or found nothing blocking. */
+  private async runVirusTotalCheck(localPath: string): Promise<ScanResult | null> {
     const vtSettings = await readVirusTotalSettings(this.storage);
-    if (vtSettings.enabled && vtSettings.apiKey) {
-      const primaryFile = await resolvePrimaryFile(localPath);
-      if (primaryFile) {
-        const hash = await computeFileSha256(primaryFile).catch((err) => {
-          securityScanLogger.warn({ err, primaryFile }, "Failed to hash file for VirusTotal");
-          return null;
-        });
+    if (!vtSettings.enabled || !vtSettings.apiKey) return null;
 
-        if (hash) {
-          const verdict = await checkVirusTotalHash(hash, vtSettings.apiKey);
-          if (verdict.status === "flagged" && verdict.positives > vtSettings.threshold) {
-            return {
-              blocked: true,
-              source: "virustotal",
-              hash,
-              reason: `VirusTotal detected ${verdict.positives} engine(s) flagging this file (threshold: ${vtSettings.threshold})`,
-            };
-          }
+    const primaryFile = await resolvePrimaryFile(localPath);
+    if (!primaryFile) return null;
 
-          if (verdict.status === "unknown") {
-            securityScanLogger.warn(
-              { hash },
-              "Hash not found on VirusTotal (Unknown File). Proceeding based on user security tolerance."
-            );
-            if (vtSettings.blockUnknownHashes) {
-              return {
-                blocked: true,
-                source: "virustotal",
-                hash,
-                reason: "Hash not found on VirusTotal and 'Block unknown hashes' is enabled",
-              };
-            }
-          }
+    const hash = await computeFileSha256(primaryFile).catch((err) => {
+      securityScanLogger.warn({ err, primaryFile }, "Failed to hash file for VirusTotal");
+      return null;
+    });
+    if (!hash) return null;
 
-          if (verdict.status === "error") {
-            securityScanLogger.warn(
-              { hash, error: verdict.error },
-              "VirusTotal lookup failed, proceeding without a verdict"
-            );
-          }
-        }
+    const verdict = await checkVirusTotalHash(hash, vtSettings.apiKey);
+    if (verdict.status === "flagged" && verdict.positives > vtSettings.threshold) {
+      return {
+        blocked: true,
+        source: "virustotal",
+        hash,
+        reason: `VirusTotal detected ${verdict.positives} engine(s) flagging this file (threshold: ${vtSettings.threshold})`,
+      };
+    }
+
+    if (verdict.status === "unknown") {
+      securityScanLogger.warn(
+        { hash },
+        "Hash not found on VirusTotal (Unknown File). Proceeding based on user security tolerance."
+      );
+      if (vtSettings.blockUnknownHashes) {
+        return {
+          blocked: true,
+          source: "virustotal",
+          hash,
+          reason: "Hash not found on VirusTotal and 'Block unknown hashes' is enabled",
+        };
       }
     }
 
+    if (verdict.status === "error") {
+      securityScanLogger.warn(
+        { hash, error: verdict.error },
+        "VirusTotal lookup failed, proceeding without a verdict"
+      );
+    }
+
+    return null;
+  }
+
+  /** Returns a blocking ScanResult, or null when ClamAV is disabled, unreachable, or found nothing. */
+  private async runClamAvCheck(localPath: string): Promise<ScanResult | null> {
     const clamAvSettings = await readClamAvSettings(this.storage);
-    if (clamAvSettings.enabled && clamAvSettings.host) {
-      try {
-        const connectAddress = await connectableClamAvAddress(clamAvSettings.host);
-        const { files, truncated, incomplete } = await listAllFiles(localPath);
-        if (truncated || incomplete) {
-          // A partially- or incompletely-scanned directory must never be treated
-          // as clean — an infected file past the enumeration cap, or hidden behind
-          // a directory ClamAV's scanner couldn't read, would otherwise bypass
-          // scanning entirely and be imported along with everything else.
-          securityScanLogger.warn(
-            { localPath, limit: MAX_CLAMAV_SCAN_FILES, truncated, incomplete },
-            "ClamAV scan could not examine every file; blocking rather than treating a partial scan as clean"
-          );
+    if (!clamAvSettings.enabled || !clamAvSettings.host) return null;
+
+    try {
+      const connectAddress = await connectableClamAvAddress(clamAvSettings.host);
+      const { files, truncated, incomplete } = await listAllFiles(localPath);
+      if (truncated || incomplete) {
+        // A partially- or incompletely-scanned directory must never be treated
+        // as clean — an infected file past the enumeration cap, or hidden behind
+        // a directory ClamAV's scanner couldn't read, would otherwise bypass
+        // scanning entirely and be imported along with everything else.
+        securityScanLogger.warn(
+          { localPath, limit: MAX_CLAMAV_SCAN_FILES, truncated, incomplete },
+          "ClamAV scan could not examine every file; blocking rather than treating a partial scan as clean"
+        );
+        return {
+          blocked: true,
+          source: "clamav",
+          reason: incomplete
+            ? "ClamAV scan could not enumerate every file in this download"
+            : "ClamAV could not scan every file in this download",
+        };
+      }
+
+      for (const file of files) {
+        const verdict = await scanFileWithClamAv(file, connectAddress, clamAvSettings.port);
+        if (verdict.status === "infected") {
           return {
             blocked: true,
             source: "clamav",
-            reason: incomplete
-              ? "ClamAV scan could not enumerate every file in this download"
-              : "ClamAV could not scan every file in this download",
+            reason: `ClamAV detected ${verdict.signature} in ${path.basename(file)}`,
           };
         }
-        for (const file of files) {
-          const verdict = await scanFileWithClamAv(file, connectAddress, clamAvSettings.port);
-          if (verdict.status === "infected") {
-            return {
-              blocked: true,
-              source: "clamav",
-              reason: `ClamAV detected ${verdict.signature} in ${path.basename(file)}`,
-            };
-          }
-          if (verdict.status === "error") {
-            securityScanLogger.warn(
-              { file, error: verdict.error },
-              "ClamAV scan failed for file, proceeding without a verdict"
-            );
-          }
+        if (verdict.status === "error") {
+          securityScanLogger.warn(
+            { file, error: verdict.error },
+            "ClamAV scan failed for file, proceeding without a verdict"
+          );
         }
-      } catch (error) {
-        securityScanLogger.warn(
-          { error, host: clamAvSettings.host },
-          "Could not reach ClamAV, proceeding without a scan"
-        );
       }
+    } catch (error) {
+      securityScanLogger.warn(
+        { error, host: clamAvSettings.host },
+        "Could not reach ClamAV, proceeding without a scan"
+      );
     }
 
-    return { blocked: false };
+    return null;
   }
 }

@@ -17,12 +17,11 @@ import { resolveDownloadRelativePath, buildRemoteImportPath } from "../downloade
 import fs from "fs-extra";
 import path from "node:path";
 import { parseReleaseMetadata } from "../../shared/title-utils.js";
-import { GAME_LINK_REQUIRED_STATUS } from "../../shared/schema.js";
+import { GAME_LINK_REQUIRED_STATUS, QUARANTINED_STATUS } from "../../shared/schema.js";
 import { logger } from "../logger.js";
 import { extractHostnameFromUrl } from "../url-utils.js";
 import { isSensitivePath, assertWithinRoots } from "../path-security.js";
 import { notifyUser } from "../socket.js";
-import { QUARANTINED_STATUS } from "../../shared/schema.js";
 import { resolvePrefs } from "../notification-prefs.js";
 import { appriseClient } from "../apprise.js";
 import { type SecurityScanService, type ScanResult } from "../security-scan.js";

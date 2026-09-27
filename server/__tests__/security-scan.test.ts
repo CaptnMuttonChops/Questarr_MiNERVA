@@ -372,7 +372,7 @@ describe("SecurityScanService.scan", () => {
       mockStorage({ "security.clamav.enabled": "true", "security.clamav.host": "clamav" })
     );
     await expect(service.scan(dir)).resolves.toEqual({ blocked: false });
-    expect(clamAvTestState.createdSockets.length).toBe(2);
+    expect(clamAvTestState.createdSockets).toHaveLength(2);
   });
 
   it("blocks rather than partially scanning a directory with more files than the scan cap", async () => {
@@ -391,7 +391,7 @@ describe("SecurityScanService.scan", () => {
     expect(result.source).toBe("clamav");
     // No file should have been scanned — a partial scan must never be
     // reported as "no infection found" instead of "not fully checked".
-    expect(clamAvTestState.createdSockets.length).toBe(0);
+    expect(clamAvTestState.createdSockets).toHaveLength(0);
   });
 
   it("blocks rather than treating an unreadable subdirectory as empty", async () => {
@@ -427,7 +427,7 @@ describe("SecurityScanService.scan", () => {
       expect(result.source).toBe("clamav");
       // The unreadable subdirectory must never be silently treated as
       // empty — that would let a file hidden inside it bypass scanning.
-      expect(clamAvTestState.createdSockets.length).toBe(0);
+      expect(clamAvTestState.createdSockets).toHaveLength(0);
     } finally {
       readdirSpy.mockRestore();
     }

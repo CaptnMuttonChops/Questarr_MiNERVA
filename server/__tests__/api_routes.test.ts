@@ -3962,14 +3962,6 @@ describe("API Routes - Extended Coverage", () => {
       expect(response.status).toBe(502);
     });
 
-    it("requires a VirusTotal API key before testing", async () => {
-      const response = await request(app)
-        .post("/api/settings/security-scan/test")
-        .send({ provider: "virustotal" });
-
-      expect(response.status).toBe(400);
-    });
-
     it("tests ClamAV connectivity successfully", async () => {
       securityScanState["security.clamav.host"] = "clamav";
       netTestState.nextReply = "PONG\0";
@@ -4001,18 +3993,14 @@ describe("API Routes - Extended Coverage", () => {
       expect(response.status).toBe(502);
     });
 
-    it("requires a ClamAV host before testing", async () => {
+    it.each([
+      ["virustotal", "no VirusTotal API key configured"],
+      ["clamav", "no ClamAV host configured"],
+      ["bogus", "an unknown provider"],
+    ])("rejects a test request with %s (%s)", async (provider) => {
       const response = await request(app)
         .post("/api/settings/security-scan/test")
-        .send({ provider: "clamav" });
-
-      expect(response.status).toBe(400);
-    });
-
-    it("rejects an unknown test provider", async () => {
-      const response = await request(app)
-        .post("/api/settings/security-scan/test")
-        .send({ provider: "bogus" });
+        .send({ provider });
 
       expect(response.status).toBe(400);
     });

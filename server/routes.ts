@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { body, param } from "express-validator";
 import { createServer, type Server } from "http";
-import { storage } from "./storage.js";
+import { storage, type IStorage } from "./storage.js";
 import { stripUndefined } from "./object-utils.js";
 import { normalizeDownloadHash, normalizeTrackedKey } from "./download-hash.js";
 import { igdbClient } from "./igdb.js";
@@ -283,6 +283,118 @@ const REDACTED_PLACEHOLDER = "********";
 // than a real secret the caller wants to save.
 function isUnchangedSentinel(value: unknown): boolean {
   return value === REDACTED_PLACEHOLDER;
+}
+
+// Applies a partial VirusTotal settings update, returning an error message for
+// the caller to respond with, or null once every provided field was persisted.
+async function applyVirusTotalSettingsUpdate(
+  update:
+    | {
+        enabled?: boolean;
+        apiKey?: string;
+        threshold?: number;
+        blockUnknownHashes?: boolean;
+      }
+    | undefined,
+  storage: IStorage
+): Promise<string | null> {
+  if (!update) return null;
+  const { enabled, apiKey, threshold, blockUnknownHashes } = update;
+
+  if (enabled !== undefined) {
+    await storage.setSystemConfig("security.vt.enabled", String(!!enabled));
+  }
+  if (apiKey !== undefined && !isUnchangedSentinel(apiKey)) {
+    if (typeof apiKey !== "string" || !/^[A-Za-z0-9]{0,128}$/.test(apiKey)) {
+      return "Invalid VirusTotal API key format";
+    }
+    await storage.setSystemConfig("security.vt.apiKey", apiKey.trim());
+  }
+  if (threshold !== undefined) {
+    if (typeof threshold !== "number" || !Number.isInteger(threshold) || threshold < 0) {
+      return "Threshold must be a non-negative integer";
+    }
+    await storage.setSystemConfig("security.vt.threshold", String(threshold));
+  }
+  if (blockUnknownHashes !== undefined) {
+    await storage.setSystemConfig("security.vt.blockUnknownHashes", String(!!blockUnknownHashes));
+  }
+
+  return null;
+}
+
+// Applies a partial ClamAV settings update, returning an error message for the
+// caller to respond with, or null once every provided field was persisted.
+async function applyClamAvSettingsUpdate(
+  update: { enabled?: boolean; host?: string; port?: number } | undefined,
+  storage: IStorage
+): Promise<string | null> {
+  if (!update) return null;
+  const { enabled, host, port } = update;
+
+  if (enabled !== undefined) {
+    await storage.setSystemConfig("security.clamav.enabled", String(!!enabled));
+  }
+  if (host !== undefined) {
+    if (typeof host !== "string" || host.trim().length > 255) {
+      return "Invalid ClamAV host";
+    }
+    await storage.setSystemConfig("security.clamav.host", host.trim());
+  }
+  if (port !== undefined) {
+    if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+      return "Port must be between 1 and 65535";
+    }
+    await storage.setSystemConfig("security.clamav.port", String(port));
+  }
+
+  return null;
+}
+
+// Pings a ClamAV daemon over its INSTREAM protocol and reports whether it
+// responded with PONG before the deadline. Extracted from the settings-test
+// route so that route stays a simple dispatcher over provider name.
+async function testClamAvConnectivity(
+  address: string,
+  port: number
+): Promise<{ success: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (outcome: { success: boolean; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      socket.destroy();
+      resolve(outcome);
+    };
+    // An absolute deadline, not an idle timeout — matches security-scan.ts's
+    // scanFileWithClamAv, so a connection that stays open without ever
+    // closing can't hang this check forever.
+    const deadline = setTimeout(
+      () => finish({ success: false, error: "Connection to ClamAV timed out" }),
+      10_000
+    );
+    socket.once("error", (err) => finish({ success: false, error: err.message }));
+    let data = "";
+    socket.connect(port, address, () => {
+      socket.write("zPING\0");
+    });
+    socket.on("data", (chunk) => {
+      data += chunk.toString("utf8");
+      // Accept PONG as soon as it arrives, rather than waiting for the socket
+      // to close — clamd isn't guaranteed to close the connection after
+      // replying, which would otherwise stall this check until the deadline
+      // even though the ping already succeeded.
+      if (data.includes("PONG")) {
+        finish({ success: true });
+      }
+    });
+    socket.on("close", () => {
+      const reply = data.replaceAll("\0", "").trim();
+      finish({ success: false, error: reply || "No PONG reply from ClamAV" });
+    });
+  });
 }
 
 // Validates that a Discord webhook URL uses HTTPS and points at a genuine
@@ -4604,48 +4716,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clamav?: { enabled?: boolean; host?: string; port?: number };
       };
 
-      if (body.virusTotal) {
-        const { enabled, apiKey, threshold, blockUnknownHashes } = body.virusTotal;
-        if (enabled !== undefined) {
-          await storage.setSystemConfig("security.vt.enabled", String(!!enabled));
-        }
-        if (apiKey !== undefined && !isUnchangedSentinel(apiKey)) {
-          if (typeof apiKey !== "string" || !/^[A-Za-z0-9]{0,128}$/.test(apiKey)) {
-            return res.status(400).json({ error: "Invalid VirusTotal API key format" });
-          }
-          await storage.setSystemConfig("security.vt.apiKey", apiKey.trim());
-        }
-        if (threshold !== undefined) {
-          if (typeof threshold !== "number" || !Number.isInteger(threshold) || threshold < 0) {
-            return res.status(400).json({ error: "Threshold must be a non-negative integer" });
-          }
-          await storage.setSystemConfig("security.vt.threshold", String(threshold));
-        }
-        if (blockUnknownHashes !== undefined) {
-          await storage.setSystemConfig(
-            "security.vt.blockUnknownHashes",
-            String(!!blockUnknownHashes)
-          );
-        }
+      const vtError = await applyVirusTotalSettingsUpdate(body.virusTotal, storage);
+      if (vtError) {
+        return res.status(400).json({ error: vtError });
       }
 
-      if (body.clamav) {
-        const { enabled, host, port } = body.clamav;
-        if (enabled !== undefined) {
-          await storage.setSystemConfig("security.clamav.enabled", String(!!enabled));
-        }
-        if (host !== undefined) {
-          if (typeof host !== "string" || host.trim().length > 255) {
-            return res.status(400).json({ error: "Invalid ClamAV host" });
-          }
-          await storage.setSystemConfig("security.clamav.host", host.trim());
-        }
-        if (port !== undefined) {
-          if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
-            return res.status(400).json({ error: "Port must be between 1 and 65535" });
-          }
-          await storage.setSystemConfig("security.clamav.port", String(port));
-        }
+      const clamAvError = await applyClamAvSettingsUpdate(body.clamav, storage);
+      if (clamAvError) {
+        return res.status(400).json({ error: clamAvError });
       }
 
       return res.json({ success: true });
@@ -4681,43 +4759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         try {
           const { address } = await resolveSafeAddress(normalizeHostname(clamav.host), true);
-          const result = await new Promise<{ success: boolean; error?: string }>((resolve) => {
-            const socket = new net.Socket();
-            let settled = false;
-            const finish = (outcome: { success: boolean; error?: string }) => {
-              if (settled) return;
-              settled = true;
-              clearTimeout(deadline);
-              socket.destroy();
-              resolve(outcome);
-            };
-            // An absolute deadline, not an idle timeout — matches
-            // security-scan.ts's scanFileWithClamAv, so a connection that
-            // stays open without ever closing can't hang this check forever.
-            const deadline = setTimeout(
-              () => finish({ success: false, error: "Connection to ClamAV timed out" }),
-              10_000
-            );
-            socket.once("error", (err) => finish({ success: false, error: err.message }));
-            let data = "";
-            socket.connect(clamav.port, address, () => {
-              socket.write("zPING\0");
-            });
-            socket.on("data", (chunk) => {
-              data += chunk.toString("utf8");
-              // Accept PONG as soon as it arrives, rather than waiting for the
-              // socket to close — clamd isn't guaranteed to close the connection
-              // after replying, which would otherwise stall this check until
-              // the deadline even though the ping already succeeded.
-              if (data.includes("PONG")) {
-                finish({ success: true });
-              }
-            });
-            socket.on("close", () => {
-              const reply = data.replace(/\0/g, "").trim();
-              finish({ success: false, error: reply || "No PONG reply from ClamAV" });
-            });
-          });
+          const result = await testClamAvConnectivity(address, clamav.port);
           if (result.success) return res.json({ success: true });
           return res.status(502).json({ error: result.error ?? "ClamAV test failed" });
         } catch (error) {

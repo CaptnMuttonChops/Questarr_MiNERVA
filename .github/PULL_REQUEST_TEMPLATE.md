@@ -25,3 +25,4 @@ For any UI change (`client/src/**`), include a screenshot or short recording of 
 - [ ] I have added tests that prove my fix is effective or that my feature works
 - [ ] New and existing unit tests pass locally with my changes
 - [ ] For UI changes, I have included a screenshot or recording of it running
+- [ ] If AI is used to write the code (partially or entirely), provide the full model name (including version) and thinking level.

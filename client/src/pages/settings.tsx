@@ -74,6 +74,7 @@ import {
   type DownloaderDebugLoggingResponse,
 } from "@shared/schema";
 import { parseJsonStringArray, CANONICAL_PLATFORMS } from "@shared/title-utils";
+import PlatformsSettings from "@/components/PlatformsSettings";
 import ImportSettings from "@/components/ImportSettings";
 import { IgdbHelpPopover, IgdbTestConnectionButton } from "@/components/IgdbCredentialsHelper";
 
@@ -1268,6 +1269,7 @@ export default function SettingsPage() {
                 <TabsTrigger value="appearance">Appearance</TabsTrigger>
                 <TabsTrigger value="discovery">Discovery & Downloads</TabsTrigger>
                 <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                <TabsTrigger value="platforms">Platforms</TabsTrigger>
                 <TabsTrigger value="integrations">Integrations</TabsTrigger>
                 <TabsTrigger value="import">Import</TabsTrigger>
                 <TabsTrigger value="account-security">Account & Security</TabsTrigger>
@@ -1343,6 +1345,10 @@ export default function SettingsPage() {
             {contentFilteringCard}
 
             {libraryFilteringCard}
+          </TabsContent>
+
+          <TabsContent value="platforms" className="space-y-6">
+            <PlatformsSettings />
           </TabsContent>
 
           <TabsContent value="discovery" className="space-y-6">

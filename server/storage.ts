@@ -241,17 +241,18 @@ export interface IStorage {
   // Game journal methods (local-only notes while playing)
   getGameJournalEntries(gameId: string, userId: string): Promise<GameJournalEntry[]>;
   addGameJournalEntry(entry: InsertGameJournalEntry): Promise<GameJournalEntry>;
-  deleteGameJournalEntry(id: string, userId: string): Promise<boolean>;
+  deleteGameJournalEntry(id: string, gameId: string, userId: string): Promise<boolean>;
 
   // Game milestone methods (manual "successes" checklist)
   getGameMilestones(gameId: string, userId: string): Promise<GameMilestone[]>;
   addGameMilestone(milestone: InsertGameMilestone): Promise<GameMilestone>;
   updateGameMilestone(
     id: string,
+    gameId: string,
     userId: string,
     completed: boolean
   ): Promise<GameMilestone | undefined>;
-  deleteGameMilestone(id: string, userId: string): Promise<boolean>;
+  deleteGameMilestone(id: string, gameId: string, userId: string): Promise<boolean>;
 
   // Game screenshot methods
   getGameScreenshots(gameId: string, userId: string): Promise<GameScreenshot[]>;
@@ -263,6 +264,7 @@ export interface IStorage {
   }): Promise<GameScreenshot>;
   updateGameScreenshotCaption(
     id: string,
+    gameId: string,
     userId: string,
     caption: string | null
   ): Promise<GameScreenshot | undefined>;
@@ -727,9 +729,9 @@ export class MemStorage implements IStorage {
     return journalEntry;
   }
 
-  async deleteGameJournalEntry(id: string, userId: string): Promise<boolean> {
+  async deleteGameJournalEntry(id: string, gameId: string, userId: string): Promise<boolean> {
     const entry = this.gameJournalEntries.get(id);
-    if (entry?.userId !== userId) return false;
+    if (entry?.gameId !== gameId || entry.userId !== userId) return false;
     return this.gameJournalEntries.delete(id);
   }
 
@@ -754,20 +756,21 @@ export class MemStorage implements IStorage {
 
   async updateGameMilestone(
     id: string,
+    gameId: string,
     userId: string,
     completed: boolean
   ): Promise<GameMilestone | undefined> {
     const milestone = this.gameMilestones.get(id);
-    if (milestone?.userId !== userId) return undefined;
+    if (milestone?.gameId !== gameId || milestone.userId !== userId) return undefined;
 
     const updated: GameMilestone = { ...milestone, completedAt: completed ? new Date() : null };
     this.gameMilestones.set(id, updated);
     return updated;
   }
 
-  async deleteGameMilestone(id: string, userId: string): Promise<boolean> {
+  async deleteGameMilestone(id: string, gameId: string, userId: string): Promise<boolean> {
     const milestone = this.gameMilestones.get(id);
-    if (!milestone || milestone.userId !== userId) return false;
+    if (!milestone || milestone.gameId !== gameId || milestone.userId !== userId) return false;
     return this.gameMilestones.delete(id);
   }
 
@@ -797,11 +800,12 @@ export class MemStorage implements IStorage {
 
   async updateGameScreenshotCaption(
     id: string,
+    gameId: string,
     userId: string,
     caption: string | null
   ): Promise<GameScreenshot | undefined> {
     const screenshot = this.gameScreenshots.get(id);
-    if (screenshot?.userId !== userId) return undefined;
+    if (screenshot?.gameId !== gameId || screenshot.userId !== userId) return undefined;
 
     const updated: GameScreenshot = { ...screenshot, caption };
     this.gameScreenshots.set(id, updated);
@@ -2279,10 +2283,16 @@ export class DatabaseStorage implements IStorage {
     return firstOrThrow(rows);
   }
 
-  async deleteGameJournalEntry(id: string, userId: string): Promise<boolean> {
+  async deleteGameJournalEntry(id: string, gameId: string, userId: string): Promise<boolean> {
     const result = await db
       .delete(gameJournalEntries)
-      .where(and(eq(gameJournalEntries.id, id), eq(gameJournalEntries.userId, userId)))
+      .where(
+        and(
+          eq(gameJournalEntries.id, id),
+          eq(gameJournalEntries.gameId, gameId),
+          eq(gameJournalEntries.userId, userId)
+        )
+      )
       .returning();
     return result.length > 0;
   }
@@ -2305,21 +2315,34 @@ export class DatabaseStorage implements IStorage {
 
   async updateGameMilestone(
     id: string,
+    gameId: string,
     userId: string,
     completed: boolean
   ): Promise<GameMilestone | undefined> {
     const [updated] = await db
       .update(gameMilestones)
       .set({ completedAt: completed ? new Date() : null })
-      .where(and(eq(gameMilestones.id, id), eq(gameMilestones.userId, userId)))
+      .where(
+        and(
+          eq(gameMilestones.id, id),
+          eq(gameMilestones.gameId, gameId),
+          eq(gameMilestones.userId, userId)
+        )
+      )
       .returning();
     return updated || undefined;
   }
 
-  async deleteGameMilestone(id: string, userId: string): Promise<boolean> {
+  async deleteGameMilestone(id: string, gameId: string, userId: string): Promise<boolean> {
     const result = await db
       .delete(gameMilestones)
-      .where(and(eq(gameMilestones.id, id), eq(gameMilestones.userId, userId)))
+      .where(
+        and(
+          eq(gameMilestones.id, id),
+          eq(gameMilestones.gameId, gameId),
+          eq(gameMilestones.userId, userId)
+        )
+      )
       .returning();
     return result.length > 0;
   }
@@ -2353,13 +2376,20 @@ export class DatabaseStorage implements IStorage {
 
   async updateGameScreenshotCaption(
     id: string,
+    gameId: string,
     userId: string,
     caption: string | null
   ): Promise<GameScreenshot | undefined> {
     const [updated] = await db
       .update(gameScreenshots)
       .set({ caption })
-      .where(and(eq(gameScreenshots.id, id), eq(gameScreenshots.userId, userId)))
+      .where(
+        and(
+          eq(gameScreenshots.id, id),
+          eq(gameScreenshots.gameId, gameId),
+          eq(gameScreenshots.userId, userId)
+        )
+      )
       .returning();
     return updated || undefined;
   }

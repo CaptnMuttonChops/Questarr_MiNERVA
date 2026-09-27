@@ -172,7 +172,7 @@ describe("Game journal routes", () => {
       const response = await request(app).delete(`/api/games/${gameId}/journal/${entryId}`);
 
       expect(response.status).toBe(204);
-      expect(storage.deleteGameJournalEntry).toHaveBeenCalledWith(entryId, OWNER_ID);
+      expect(storage.deleteGameJournalEntry).toHaveBeenCalledWith(entryId, gameId, OWNER_ID);
     });
 
     it("returns 404 when the entry does not exist", async () => {
@@ -246,7 +246,7 @@ describe("Game journal routes", () => {
         .send({ completed: true });
 
       expect(response.status).toBe(200);
-      expect(storage.updateGameMilestone).toHaveBeenCalledWith(milestoneId, OWNER_ID, true);
+      expect(storage.updateGameMilestone).toHaveBeenCalledWith(milestoneId, gameId, OWNER_ID, true);
     });
 
     it("returns 404 when updating a milestone that doesn't exist", async () => {
@@ -417,6 +417,7 @@ describe("Game journal routes", () => {
       expect(response.status).toBe(200);
       expect(storage.updateGameScreenshotCaption).toHaveBeenCalledWith(
         screenshotId,
+        gameId,
         OWNER_ID,
         "updated"
       );

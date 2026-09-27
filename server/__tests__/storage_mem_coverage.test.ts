@@ -269,14 +269,14 @@ describe("MemStorage - Game update methods", () => {
 
   it("deleteGameJournalEntry returns false for another user's entry", async () => {
     const entry = await storage.addGameJournalEntry({ gameId, userId: "u1", note: "Mine" });
-    const result = await storage.deleteGameJournalEntry(entry.id, "someone-else");
+    const result = await storage.deleteGameJournalEntry(entry.id, gameId, "someone-else");
     expect(result).toBe(false);
   });
 
   it("addGameMilestone and updateGameMilestone toggle completion", async () => {
     const milestone = await storage.addGameMilestone({ gameId, userId: "u1", label: "Beat boss" });
     expect(milestone.completedAt).toBeNull();
-    const updated = await storage.updateGameMilestone(milestone.id, "u1", true);
+    const updated = await storage.updateGameMilestone(milestone.id, gameId, "u1", true);
     expect(updated?.completedAt).not.toBeNull();
   });
 

@@ -152,7 +152,7 @@ router.delete(
       if (!gameId) return;
       const user = req.user as User;
       const { entryId } = req.params as { entryId: string };
-      const deleted = await storage.deleteGameJournalEntry(entryId, user.id);
+      const deleted = await storage.deleteGameJournalEntry(entryId, gameId, user.id);
       if (!deleted) return res.status(404).json({ error: "Journal entry not found" });
       return res.status(204).send();
     } catch (error) {
@@ -223,7 +223,7 @@ router.patch(
       const { milestoneId } = req.params as { milestoneId: string };
       const { completed } = updateGameMilestoneSchema.parse(req.body);
 
-      const updated = await storage.updateGameMilestone(milestoneId, user.id, completed);
+      const updated = await storage.updateGameMilestone(milestoneId, gameId, user.id, completed);
       if (!updated) return res.status(404).json({ error: "Milestone not found" });
       return res.json(updated);
     } catch (error) {
@@ -249,7 +249,7 @@ router.delete(
       if (!gameId) return;
       const user = req.user as User;
       const { milestoneId } = req.params as { milestoneId: string };
-      const deleted = await storage.deleteGameMilestone(milestoneId, user.id);
+      const deleted = await storage.deleteGameMilestone(milestoneId, gameId, user.id);
       if (!deleted) return res.status(404).json({ error: "Milestone not found" });
       return res.status(204).send();
     } catch (error) {
@@ -401,7 +401,12 @@ router.patch(
       const { screenshotId } = req.params as { screenshotId: string };
       const { caption } = updateGameScreenshotSchema.parse(req.body);
 
-      const updated = await storage.updateGameScreenshotCaption(screenshotId, user.id, caption);
+      const updated = await storage.updateGameScreenshotCaption(
+        screenshotId,
+        gameId,
+        user.id,
+        caption
+      );
       if (!updated) return res.status(404).json({ error: "Screenshot not found" });
       return res.json({ ...updated, url: `/api/games/${gameId}/screenshots/${updated.id}/file` });
     } catch (error) {

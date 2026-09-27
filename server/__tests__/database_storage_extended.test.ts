@@ -194,8 +194,8 @@ describe("DatabaseStorage Extended Coverage", () => {
       });
       expect(entry.note).toBe("Reached the second boss");
       expect(await storage.getGameJournalEntries(game.id, userId)).toHaveLength(1);
-      expect(await storage.deleteGameJournalEntry(entry.id, "someone-else")).toBe(false);
-      expect(await storage.deleteGameJournalEntry(entry.id, userId)).toBe(true);
+      expect(await storage.deleteGameJournalEntry(entry.id, game.id, "someone-else")).toBe(false);
+      expect(await storage.deleteGameJournalEntry(entry.id, game.id, userId)).toBe(true);
 
       const milestone = await storage.addGameMilestone({
         gameId: game.id,
@@ -203,9 +203,9 @@ describe("DatabaseStorage Extended Coverage", () => {
         label: "100% completion",
       });
       expect(milestone.completedAt).toBeNull();
-      const completed = await storage.updateGameMilestone(milestone.id, userId, true);
+      const completed = await storage.updateGameMilestone(milestone.id, game.id, userId, true);
       expect(completed?.completedAt).not.toBeNull();
-      expect(await storage.deleteGameMilestone(milestone.id, userId)).toBe(true);
+      expect(await storage.deleteGameMilestone(milestone.id, game.id, userId)).toBe(true);
 
       const screenshot = await storage.addGameScreenshot({
         gameId: game.id,
@@ -215,6 +215,7 @@ describe("DatabaseStorage Extended Coverage", () => {
       expect(screenshot.filePath).toBe("/data/screenshots/example.png");
       const captioned = await storage.updateGameScreenshotCaption(
         screenshot.id,
+        game.id,
         userId,
         "Final boss"
       );

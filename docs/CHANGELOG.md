@@ -28,7 +28,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **Per-game target platforms** for automatic downloads (#1048).
 - **Platform and release year filters** on game search (#897).
 - **Library filters**: added optional filters to hide shelved games and games already owned from search/discover results (#1089).
-- **"Playing" status** for games (#1043).
+- **"Playing" status** for games (#1043), with a dedicated **Playing** page — journal notes, a milestones checklist, screenshots, and Steam achievements per game (#1080).
 - **Crack status** section on the game detail page (#1012, #1062).
 - **Time to Beat** via IGDB's official endpoint (#1063).
 - **Sort menu** on the Library page, plus an indexer-priority sort option for downloads (#980, #963).
@@ -37,6 +37,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **SABnzbd**: archive password support for G4U-style releases (#962).
 - **Debug logging**: opt-in logging of full downloader responses (#927).
 - **`/api/status`**: new dashboard endpoint (#984).
+- **Pre-import security scanning**: optional VirusTotal (hash lookup) and ClamAV (local deep scan) checks before a download is unpacked or moved into the library; a detection quarantines the download and raises a Security Alert notification instead of importing it (#1102).
 - **Deployment**: Windows installer build (#933); a Helm chart, a Proxmox VE LXC script, and CasaOS/Umbrel/Cosmos Cloud app-store definitions (#983, #985, #982).
 - **Telemetry**: opt-in automatic reporting of unhandled server errors (#924).
 - **Sidebar**: moved the xREL and RSS pages under Discover (#1086).

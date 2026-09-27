@@ -24,6 +24,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **AI auto-download sanity check**: a suspicious auto-download match is now held for manual review (notified over Apprise) instead of downloading automatically. Fails open if the check itself errors (#1077, #1078).
 - **Library filters**: added optional filters to hide shelved games and games already owned from search/discover results (#1089).
 - **Sidebar**: moved the xREL and RSS pages under Discover (#1086).
+- **Platforms setting**: one Settings > Platforms list now governs every platform selector (Library, Discover, Add Game, download search) (#1018, #1104).
 
 ### Fixed
 

@@ -42,6 +42,7 @@ import { comparePassword } from "../auth.js";
 import { routesLogger } from "../logger.js";
 import { db } from "../db.js";
 import { appriseClient } from "../apprise.js";
+import * as ssrfModule from "../ssrf.js";
 import fsExtra from "fs-extra";
 import { normalizeTitle } from "../../shared/title-utils.js";
 
@@ -64,6 +65,44 @@ vi.mock("../search.js", () => createSearchMock());
 vi.mock("fs-extra", () => ({
   default: { remove: vi.fn(), pathExists: vi.fn(), readdir: vi.fn() },
 }));
+// Only the new /api/settings/security-scan/test ClamAV-ping route touches
+// node:net anywhere in routes.ts, so mocking it file-wide here is safe.
+const netTestState = vi.hoisted(() => ({ nextReply: "PONG\0" as string | null }));
+vi.mock("node:net", () => {
+  class FakeSocket {
+    private listeners = new Map<string, Array<(...args: unknown[]) => void>>();
+    on(event: string, cb: (...args: unknown[]) => void) {
+      const arr = this.listeners.get(event) ?? [];
+      arr.push(cb);
+      this.listeners.set(event, arr);
+      return this;
+    }
+    once(event: string, cb: (...args: unknown[]) => void) {
+      return this.on(event, cb);
+    }
+    emit(event: string, ...args: unknown[]) {
+      for (const cb of this.listeners.get(event) ?? []) cb(...args);
+    }
+    connect(_port: number, _address: string, cb: () => void) {
+      queueMicrotask(cb);
+      return this;
+    }
+    write() {
+      if (netTestState.nextReply !== null) {
+        queueMicrotask(() => {
+          this.emit("data", Buffer.from(netTestState.nextReply as string));
+          this.emit("close");
+        });
+      }
+      return true;
+    }
+    setTimeout() {
+      return this;
+    }
+    destroy() {}
+  }
+  return { default: { Socket: FakeSocket }, Socket: FakeSocket };
+});
 // Real isWithinDeletableRootFolder (pure path logic, no fs access) is used by the
 // game-delete tests above; only probeRootFolder — which does real fs.stat/statfs —
 // needs stubbing so the root-folder create/update route tests below don't depend
@@ -3774,6 +3813,198 @@ describe("API Routes - Extended Coverage", () => {
 
       expect(response.status).toBe(502);
       expect(response.body.error).toBe("CLI timed out");
+    });
+  });
+
+  // ─── Security scan settings ───
+  describe("Security scan settings", () => {
+    const securityScanState: Record<string, string | undefined> = {};
+
+    beforeEach(() => {
+      for (const key of Object.keys(securityScanState)) delete securityScanState[key];
+      vi.mocked(storage.getSystemConfig).mockImplementation(
+        async (key: string) => securityScanState[key]
+      );
+      vi.mocked(storage.setSystemConfig).mockImplementation(async (key: string, value: string) => {
+        securityScanState[key] = value;
+      });
+      netTestState.nextReply = "PONG\0";
+    });
+
+    afterEach(() => {
+      vi.mocked(storage.getSystemConfig).mockReset();
+      vi.mocked(storage.setSystemConfig).mockReset();
+      vi.restoreAllMocks();
+    });
+
+    it("returns masked defaults when nothing is configured", async () => {
+      const response = await request(app).get("/api/settings/security-scan");
+
+      expect(response.status).toBe(200);
+      expect(response.body.virusTotal).toEqual({
+        enabled: false,
+        apiKey: "",
+        threshold: 2,
+        blockUnknownHashes: false,
+      });
+      expect(response.body.clamav).toEqual({ enabled: false, host: "", port: 3310 });
+    });
+
+    it("masks a saved VirusTotal API key on GET", async () => {
+      securityScanState["security.vt.apiKey"] = "supersecretkey123";
+      const response = await request(app).get("/api/settings/security-scan");
+
+      expect(response.status).toBe(200);
+      expect(response.body.virusTotal.apiKey).toBe("********");
+    });
+
+    it("persists VirusTotal settings", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan")
+        .send({
+          virusTotal: {
+            enabled: true,
+            apiKey: "abc123XYZ",
+            threshold: 5,
+            blockUnknownHashes: true,
+          },
+        });
+
+      expect(response.status).toBe(200);
+      expect(storage.setSystemConfig).toHaveBeenCalledWith("security.vt.enabled", "true");
+      expect(storage.setSystemConfig).toHaveBeenCalledWith("security.vt.apiKey", "abc123XYZ");
+      expect(storage.setSystemConfig).toHaveBeenCalledWith("security.vt.threshold", "5");
+      expect(storage.setSystemConfig).toHaveBeenCalledWith(
+        "security.vt.blockUnknownHashes",
+        "true"
+      );
+    });
+
+    it("does not overwrite the API key when the masked placeholder is submitted", async () => {
+      securityScanState["security.vt.apiKey"] = "existing-key";
+      const response = await request(app)
+        .post("/api/settings/security-scan")
+        .send({ virusTotal: { apiKey: "********" } });
+
+      expect(response.status).toBe(200);
+      expect(storage.setSystemConfig).not.toHaveBeenCalledWith(
+        "security.vt.apiKey",
+        expect.anything()
+      );
+      expect(securityScanState["security.vt.apiKey"]).toBe("existing-key");
+    });
+
+    it("rejects a malformed VirusTotal API key", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan")
+        .send({ virusTotal: { apiKey: "not valid!!" } });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("rejects a negative threshold", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan")
+        .send({ virusTotal: { threshold: -1 } });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("persists ClamAV settings", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan")
+        .send({ clamav: { enabled: true, host: "clamav", port: 3310 } });
+
+      expect(response.status).toBe(200);
+      expect(storage.setSystemConfig).toHaveBeenCalledWith("security.clamav.enabled", "true");
+      expect(storage.setSystemConfig).toHaveBeenCalledWith("security.clamav.host", "clamav");
+      expect(storage.setSystemConfig).toHaveBeenCalledWith("security.clamav.port", "3310");
+    });
+
+    it("rejects an out-of-range ClamAV port", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan")
+        .send({ clamav: { port: 99999 } });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("tests the VirusTotal API key successfully", async () => {
+      securityScanState["security.vt.apiKey"] = "valid-key";
+      vi.spyOn(ssrfModule, "safeFetch").mockResolvedValue({ ok: true, status: 200 } as never);
+
+      const response = await request(app)
+        .post("/api/settings/security-scan/test")
+        .send({ provider: "virustotal" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+
+    it("reports an invalid VirusTotal API key", async () => {
+      securityScanState["security.vt.apiKey"] = "bad-key";
+      vi.spyOn(ssrfModule, "safeFetch").mockResolvedValue({ ok: false, status: 401 } as never);
+
+      const response = await request(app)
+        .post("/api/settings/security-scan/test")
+        .send({ provider: "virustotal" });
+
+      expect(response.status).toBe(502);
+    });
+
+    it("requires a VirusTotal API key before testing", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan/test")
+        .send({ provider: "virustotal" });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("tests ClamAV connectivity successfully", async () => {
+      securityScanState["security.clamav.host"] = "clamav";
+      netTestState.nextReply = "PONG\0";
+      vi.spyOn(ssrfModule, "resolveSafeAddress").mockResolvedValue({
+        address: "10.0.0.5",
+        family: 4,
+      });
+
+      const response = await request(app)
+        .post("/api/settings/security-scan/test")
+        .send({ provider: "clamav" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+
+    it("reports a failed ClamAV ping", async () => {
+      securityScanState["security.clamav.host"] = "clamav";
+      netTestState.nextReply = "";
+      vi.spyOn(ssrfModule, "resolveSafeAddress").mockResolvedValue({
+        address: "10.0.0.5",
+        family: 4,
+      });
+
+      const response = await request(app)
+        .post("/api/settings/security-scan/test")
+        .send({ provider: "clamav" });
+
+      expect(response.status).toBe(502);
+    });
+
+    it("requires a ClamAV host before testing", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan/test")
+        .send({ provider: "clamav" });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("rejects an unknown test provider", async () => {
+      const response = await request(app)
+        .post("/api/settings/security-scan/test")
+        .send({ provider: "bogus" });
+
+      expect(response.status).toBe(400);
     });
   });
 

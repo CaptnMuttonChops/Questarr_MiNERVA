@@ -307,6 +307,35 @@ describe("DatabaseStorage Extended Coverage", () => {
       expect(results.map((d) => d.id)).toEqual([unlinked?.id]);
     });
 
+    it("getQuarantinedDownloads returns only quarantined downloads owned by the given user", async () => {
+      const { userId, game, downloader } = await setup();
+
+      const quarantined = await storage.addGameDownload({
+        gameId: game.id,
+        downloaderId: downloader.id,
+        downloadHash: "hash-quarantined",
+        downloadTitle: "Flagged-GROUP",
+        status: "downloading",
+        downloadType: "torrent",
+        fileSize: null,
+      } as InsertGameDownload);
+      await storage.updateGameDownloadStatus(quarantined!.id, "quarantined", "flagged by scan");
+
+      await storage.addGameDownload({
+        gameId: game.id,
+        downloaderId: downloader.id,
+        downloadHash: "hash-clean",
+        downloadTitle: "Clean-GROUP",
+        status: "completed",
+        downloadType: "torrent",
+        fileSize: null,
+      } as InsertGameDownload);
+
+      const results = await storage.getQuarantinedDownloads(userId);
+      expect(results.map((d) => d.id)).toEqual([quarantined?.id]);
+      expect(results[0].errorMessage).toBe("flagged by scan");
+    });
+
     it("relinkGameDownload reattaches the game and returns to manual_review_required", async () => {
       const { userId, game, downloader } = await setup();
       const correctGame = await storage.addGame({

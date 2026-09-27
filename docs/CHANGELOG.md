@@ -71,6 +71,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **Mobile**: personal notes collapse behind an Edit button; the Settings tab strip gets scroll-fade hints (#993, #969).
 - **Logs page**: history limit raised from 200 to 1000 lines (#928).
 - Made the pending-imports alert collapsible across multiple reviews (#1038).
+- Dependency updates: `undici` 7.29.0 → 8.9.0 (direct dependency, used by the SSRF-safe fetch wrapper in `server/ssrf.ts`). No vulnerability fix — see `docs/CVE_FIXES_BY_RELEASE.md` for verification. Major version bump; undici 8.9.0 requires Node `>=22.19.0`, so Questarr's own `engines.node` floor is raised from `>=20` to `>=22.19.0` to match — this only formalizes existing practice, since CI (`node-version: 26.x`) and the production Docker image (`node:26-alpine`) were already on Node 26. Full test suite and `server/__tests__/ssrf.test.ts` verified green against the new version.
 
 ### Security
 
@@ -96,11 +97,6 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **socket.io-parser** (npm `overrides` pin) 4.2.6 → 4.2.7 — fixes GHSA-2m8v-j782-fhvr (HIGH, CVSS 7.5) — zero-attachment memory exhaustion, vulnerable range `4.0.0 - <4.2.7`. Reaches production via `socket.io`/`socket.io-client` (real-time download-progress and notification updates).
 - **qs** (npm `overrides` pin) 6.15.2 → 6.16.0 — fixes GHSA-4mjr-xmp4-gh2g (MODERATE) — DoS via attacker-controlled `isBuffer`, vulnerable range `>=2.2.5 <6.16.0` — and GHSA-x5fp-wj9c-mxmx (MODERATE) — array-limit bypass via bracket-key comma parsing, vulnerable range `>=6.14.2 <=6.15.3`. Reaches production via `express`/`body-parser`, both of which pin `qs: ~6.15.1` (a range that otherwise excludes the fix); the same override also closes the gap in `openid`, `steam-web`, and `superagent` (#997).
 - **js-yaml** (npm `overrides` pin, dev-only, scoped to `@eslint/eslintrc`) 4.3.0 → 4.3.2 — fixes GHSA-5p4m-2wfm-xmqj (HIGH) — quadratic CPU consumption in `!!omap` resolution. Scoped rather than global so the already-unaffected top-level `js-yaml@5.3.0` is left untouched (#997).
-
-### Changed
-
-- **Calendar**: optimized date filtering in the year view for performance (#1076).
-- Dependency updates: `undici` 7.29.0 → 8.9.0 (direct dependency, used by the SSRF-safe fetch wrapper in `server/ssrf.ts`). No vulnerability fix — see `docs/CVE_FIXES_BY_RELEASE.md` for verification. Major version bump; undici 8.9.0 requires Node `>=22.19.0`, so Questarr's own `engines.node` floor is raised from `>=20` to `>=22.19.0` to match — this only formalizes existing practice, since CI (`node-version: 26.x`) and the production Docker image (`node:26-alpine`) were already on Node 26. Full test suite and `server/__tests__/ssrf.test.ts` verified green against the new version.
 
 ## [1.4.2] - 2026-08-11
 

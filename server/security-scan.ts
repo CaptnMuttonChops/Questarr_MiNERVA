@@ -130,18 +130,28 @@ async function resolvePrimaryFile(localPath: string): Promise<string | null> {
   return largest ? (largest as { file: string; size: number }).file : null;
 }
 
-async function listAllFiles(localPath: string): Promise<string[]> {
-  const stat = await fs.stat(localPath).catch(() => null);
-  if (!stat) return [];
-  if (stat.isFile()) return [localPath];
-  if (!stat.isDirectory()) return [];
+interface ListAllFilesResult {
+  files: string[];
+  truncated: boolean;
+}
 
+// Enumerates one file beyond the scan cap so a directory with exactly
+// MAX_CLAMAV_SCAN_FILES entries can be told apart from one that actually had
+// more — the latter must be reported as truncated so the caller can refuse to
+// treat a partially-scanned directory as clean.
+async function listAllFiles(localPath: string): Promise<ListAllFilesResult> {
+  const stat = await fs.stat(localPath).catch(() => null);
+  if (!stat) return { files: [], truncated: false };
+  if (stat.isFile()) return { files: [localPath], truncated: false };
+  if (!stat.isDirectory()) return { files: [], truncated: false };
+
+  const enumerationLimit = MAX_CLAMAV_SCAN_FILES + 1;
   const files: string[] = [];
   const walk = async (dir: string): Promise<void> => {
-    if (files.length >= MAX_CLAMAV_SCAN_FILES) return;
+    if (files.length >= enumerationLimit) return;
     const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
     for (const entry of entries) {
-      if (files.length >= MAX_CLAMAV_SCAN_FILES) return;
+      if (files.length >= enumerationLimit) return;
       const entryPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(entryPath);
@@ -151,7 +161,10 @@ async function listAllFiles(localPath: string): Promise<string[]> {
     }
   };
   await walk(localPath);
-  return files.slice(0, MAX_CLAMAV_SCAN_FILES);
+  return {
+    files: files.slice(0, MAX_CLAMAV_SCAN_FILES),
+    truncated: files.length > MAX_CLAMAV_SCAN_FILES,
+  };
 }
 
 export type VirusTotalVerdict =
@@ -345,12 +358,20 @@ export class SecurityScanService {
     if (clamAvSettings.enabled && clamAvSettings.host) {
       try {
         const connectAddress = await connectableClamAvAddress(clamAvSettings.host);
-        const files = await listAllFiles(localPath);
-        if (files.length >= MAX_CLAMAV_SCAN_FILES) {
+        const { files, truncated } = await listAllFiles(localPath);
+        if (truncated) {
+          // A partially-scanned directory must never be treated as clean —
+          // an infected file past the enumeration cap would otherwise bypass
+          // ClamAV entirely and be imported along with everything else.
           securityScanLogger.warn(
             { localPath, limit: MAX_CLAMAV_SCAN_FILES },
-            "ClamAV scan capped at the file limit; remaining files were not scanned"
+            "ClamAV scan capped at the file limit; blocking rather than scanning only a subset"
           );
+          return {
+            blocked: true,
+            source: "clamav",
+            reason: "ClamAV could not scan every file in this download",
+          };
         }
         for (const file of files) {
           const verdict = await scanFileWithClamAv(file, connectAddress, clamAvSettings.port);

@@ -373,4 +373,23 @@ describe("SecurityScanService.scan", () => {
     await expect(service.scan(dir)).resolves.toEqual({ blocked: false });
     expect(clamAvTestState.createdSockets.length).toBe(2);
   });
+
+  it("blocks rather than partially scanning a directory with more files than the scan cap", async () => {
+    const dir = path.join(tmpDir, "huge-release");
+    fs.mkdirSync(dir);
+    // One more file than the 100-file cap so enumeration is truncated.
+    for (let i = 0; i < 101; i++) {
+      fs.writeFileSync(path.join(dir, `file-${i}.bin`), "x");
+    }
+    vi.mocked(resolveSafeAddress).mockResolvedValue({ address: "10.0.0.5", family: 4 });
+    const service = new SecurityScanService(
+      mockStorage({ "security.clamav.enabled": "true", "security.clamav.host": "clamav" })
+    );
+    const result = await service.scan(dir);
+    expect(result.blocked).toBe(true);
+    expect(result.source).toBe("clamav");
+    // No file should have been scanned — a partial scan must never be
+    // reported as "no infection found" instead of "not fully checked".
+    expect(clamAvTestState.createdSockets.length).toBe(0);
+  });
 });

@@ -1415,6 +1415,50 @@ describe("ImportManager", () => {
       expect(storage.addNotification).not.toHaveBeenCalled();
     });
 
+    it("does not mark the download quarantined when the move to quarantine fails", async () => {
+      storage.getGameDownload.mockResolvedValue({
+        id: "dl-1",
+        gameId: "g1",
+        downloaderId: "d1",
+      });
+      storage.getGame.mockResolvedValue({
+        id: "g1",
+        title: "Flagged Game",
+        userId: "u1",
+        status: "wanted",
+        platforms: [6],
+      });
+      storage.getImportConfig.mockResolvedValue({ ...baseConfig, libraryRoot: "/data/library" });
+      fsMock.move.mockRejectedValueOnce(new Error("disk full"));
+
+      const securityScanService = {
+        scan: vi.fn().mockResolvedValue({ blocked: true, source: "clamav", reason: "infected" }),
+      };
+
+      const manager = new ImportManager(
+        storage as never, // NOSONAR
+        pathService as never, // NOSONAR
+        platformService as never, // NOSONAR
+        archiveService as never, // NOSONAR
+        securityScanService as never // NOSONAR
+      );
+
+      await manager.processImport("dl-1", "/remote/path");
+
+      // A failed move must never be swallowed into a false "quarantined" status —
+      // the file is still sitting at its original, unquarantined path.
+      expect(
+        storage.updateGameDownloadStatus.mock.calls.some(
+          ([id, status]) => id === "dl-1" && status === "quarantined"
+        )
+      ).toBe(false);
+      expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith(
+        "dl-1",
+        "manual_review_required",
+        expect.stringContaining("disk full")
+      );
+    });
+
     it("proceeds with the import when the scan does not block", async () => {
       storage.getGameDownload.mockResolvedValue({
         id: "dl-1",

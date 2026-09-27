@@ -644,8 +644,10 @@ export class ImportManager {
    * Moves a scan-flagged download out of the downloader's directory and into an
    * isolated quarantine folder (a sibling of the library root, never inside it),
    * marks the download "quarantined" instead of importing it, and raises a
-   * Security Alert notification. Move failures fall back to leaving the file in
-   * place — the download is still marked quarantined so it isn't imported either way.
+   * Security Alert notification. A failed move is rethrown rather than swallowed —
+   * QUARANTINED_STATUS is a contract that the file was actually relocated, and both
+   * callers already treat a thrown error as "leave this for manual review", which is
+   * the right outcome when the file is still sitting at its original, unquarantined path.
    */
   private async quarantineDownload(
     downloadId: string,
@@ -682,6 +684,7 @@ export class ImportManager {
           { moveErr, downloadId, localPath },
           "[ImportManager] Failed to move flagged download to quarantine — leaving it in place"
         );
+        throw moveErr;
       }
     } else {
       logger.error(

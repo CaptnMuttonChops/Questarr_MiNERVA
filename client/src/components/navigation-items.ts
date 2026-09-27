@@ -22,16 +22,23 @@ export interface AppNavItem {
   title: string;
   url: string;
   icon: LucideIcon;
+  children?: AppNavItem[];
 }
 
 export const primaryNavigation: AppNavItem[] = [
   { title: "Library", url: "/", icon: Home },
-  { title: "Discover", url: "/discover", icon: Compass },
+  {
+    title: "Discover",
+    url: "/discover",
+    icon: Compass,
+    children: [
+      { title: "xREL.to Releases", url: "/xrel", icon: Newspaper },
+      { title: "RSS Feeds", url: "/rss", icon: Rss },
+    ],
+  },
   { title: "Downloads", url: "/downloads", icon: Download },
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Wishlist", url: "/wishlist", icon: Star },
-  { title: "xREL.to Releases", url: "/xrel", icon: Newspaper },
-  { title: "RSS Feeds", url: "/rss", icon: Rss },
   { title: "Stats", url: "/stats", icon: PieChart },
 ];
 
@@ -54,7 +61,7 @@ export const mobileBottomNavigation: AppNavItem[] = [
 ];
 
 const allNavigation: AppNavItem[] = [
-  ...primaryNavigation,
+  ...primaryNavigation.flatMap((item) => (item.children ? [item, ...item.children] : [item])),
   ...managementNavigation,
   ...activityNavigation,
   { title: "Search", url: "/search", icon: Search },

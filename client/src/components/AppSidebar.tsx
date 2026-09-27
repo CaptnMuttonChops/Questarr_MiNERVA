@@ -10,6 +10,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +134,27 @@ export default function AppSidebar({ activeItem = "/", onNavigate }: Readonly<Ap
                       )}
                     </button>
                   </SidebarMenuButton>
+                  {item.children && (
+                    <SidebarMenuSub>
+                      {item.children.map((child) => (
+                        <SidebarMenuSubItem key={child.title}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={activeItem === child.url}
+                            data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`}
+                          >
+                            <button
+                              onClick={() => handleNavigation(child.url)}
+                              className="flex items-center gap-2 w-full"
+                            >
+                              <child.icon className="w-4 h-4" aria-hidden="true" />
+                              <span>{child.title}</span>
+                            </button>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

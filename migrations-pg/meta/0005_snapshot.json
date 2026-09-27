@@ -1,6 +1,6 @@
 {
-  "id": "8aa125c8-9a60-431b-a098-8d3623b1598b",
-  "prevId": "bc1c018a-82c0-42a3-b281-8f9c1b321505",
+  "id": "3e4af660-3d0e-4301-9af6-2735cb2c81ae",
+  "prevId": "8aa125c8-9a60-431b-a098-8d3623b1598b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -956,6 +956,12 @@
         },
         "igdb_websites": {
           "name": "igdb_websites",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expansions": {
+          "name": "expansions",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false

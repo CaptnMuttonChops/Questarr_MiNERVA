@@ -47,6 +47,11 @@ import {
   type RootFolder,
   type InsertRootFolder,
   type UpdateRootFolder,
+  type GameJournalEntry,
+  type InsertGameJournalEntry,
+  type GameMilestone,
+  type InsertGameMilestone,
+  type GameScreenshot,
 } from "../shared/schema.js";
 import {
   users,
@@ -69,6 +74,9 @@ import {
   gameFiles,
   apiKeys,
   rootFolders,
+  gameJournalEntries,
+  gameMilestones,
+  gameScreenshots,
 } from "./db/tables.js";
 import { randomUUID } from "crypto";
 import { db } from "./db.js";
@@ -221,7 +229,6 @@ export interface IStorage {
     userId: string,
     userRating: number | null
   ): Promise<Game | undefined>;
-  updateGameNotes(id: string, userId: string, notes: string | null): Promise<Game | undefined>;
   updateGameSearchResultsAvailable(gameId: string, available: boolean): Promise<void>;
   updateGameSearchResultsByCategory(
     gameId: string,
@@ -231,6 +238,38 @@ export interface IStorage {
   updateGamesBatch(updates: { id: string; data: Partial<Game> }[]): Promise<void>;
   removeGame(id: string): Promise<boolean>;
   assignOrphanGamesToUser(userId: string): Promise<number>;
+
+  // Game journal methods (local-only notes while playing)
+  getGameJournalEntries(gameId: string, userId: string): Promise<GameJournalEntry[]>;
+  addGameJournalEntry(entry: InsertGameJournalEntry): Promise<GameJournalEntry>;
+  deleteGameJournalEntry(id: string, gameId: string, userId: string): Promise<boolean>;
+
+  // Game milestone methods (manual "successes" checklist)
+  getGameMilestones(gameId: string, userId: string): Promise<GameMilestone[]>;
+  addGameMilestone(milestone: InsertGameMilestone): Promise<GameMilestone>;
+  updateGameMilestone(
+    id: string,
+    gameId: string,
+    userId: string,
+    completed: boolean
+  ): Promise<GameMilestone | undefined>;
+  deleteGameMilestone(id: string, gameId: string, userId: string): Promise<boolean>;
+
+  // Game screenshot methods
+  getGameScreenshots(gameId: string, userId: string): Promise<GameScreenshot[]>;
+  addGameScreenshot(screenshot: {
+    gameId: string;
+    userId: string;
+    filePath: string;
+    caption?: string | null;
+  }): Promise<GameScreenshot>;
+  updateGameScreenshotCaption(
+    id: string,
+    gameId: string,
+    userId: string,
+    caption: string | null
+  ): Promise<GameScreenshot | undefined>;
+  deleteGameScreenshot(id: string, userId: string): Promise<GameScreenshot | undefined>;
 
   // Indexer methods
   getAllIndexers(): Promise<Indexer[]>;
@@ -434,6 +473,9 @@ export class MemStorage implements IStorage {
   private gameFiles: Map<string, GameFile>;
   private rootFolders: Map<string, RootFolder>;
   private apiKeys: Map<string, ApiKey>;
+  private gameJournalEntries: Map<string, GameJournalEntry>;
+  private gameMilestones: Map<string, GameMilestone>;
+  private gameScreenshots: Map<string, GameScreenshot>;
 
   constructor() {
     this.users = new Map();
@@ -454,6 +496,9 @@ export class MemStorage implements IStorage {
     this.gameFiles = new Map();
     this.rootFolders = new Map();
     this.apiKeys = new Map();
+    this.gameJournalEntries = new Map();
+    this.gameMilestones = new Map();
+    this.gameScreenshots = new Map();
   }
 
   // System Config methods
@@ -613,7 +658,6 @@ export class MemStorage implements IStorage {
       updateSearchResultsAvailable: false,
       packsSearchResultsAvailable: false,
       userRating: null,
-      notes: null,
       libraryPath: null,
       addedAt: new Date(),
       completedAt: null,
@@ -671,17 +715,112 @@ export class MemStorage implements IStorage {
     return updatedGame;
   }
 
-  async updateGameNotes(
-    id: string,
-    userId: string,
-    notes: string | null
-  ): Promise<Game | undefined> {
-    const game = this.games.get(id);
-    if (!game || game.userId !== userId) return undefined;
+  async getGameJournalEntries(gameId: string, userId: string): Promise<GameJournalEntry[]> {
+    return Array.from(this.gameJournalEntries.values())
+      .filter((entry) => entry.gameId === gameId && entry.userId === userId)
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  }
 
-    const updatedGame: Game = { ...game, notes };
-    this.games.set(id, updatedGame);
-    return updatedGame;
+  async addGameJournalEntry(entry: InsertGameJournalEntry): Promise<GameJournalEntry> {
+    const journalEntry: GameJournalEntry = {
+      id: randomUUID(),
+      gameId: entry.gameId,
+      userId: entry.userId,
+      note: entry.note,
+      createdAt: new Date(),
+    };
+    this.gameJournalEntries.set(journalEntry.id, journalEntry);
+    return journalEntry;
+  }
+
+  async deleteGameJournalEntry(id: string, gameId: string, userId: string): Promise<boolean> {
+    const entry = this.gameJournalEntries.get(id);
+    if (entry?.gameId !== gameId || entry.userId !== userId) return false;
+    return this.gameJournalEntries.delete(id);
+  }
+
+  async getGameMilestones(gameId: string, userId: string): Promise<GameMilestone[]> {
+    return Array.from(this.gameMilestones.values())
+      .filter((m) => m.gameId === gameId && m.userId === userId)
+      .sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
+  }
+
+  async addGameMilestone(milestone: InsertGameMilestone): Promise<GameMilestone> {
+    const gameMilestone: GameMilestone = {
+      id: randomUUID(),
+      gameId: milestone.gameId,
+      userId: milestone.userId,
+      label: milestone.label,
+      completedAt: null,
+      createdAt: new Date(),
+    };
+    this.gameMilestones.set(gameMilestone.id, gameMilestone);
+    return gameMilestone;
+  }
+
+  async updateGameMilestone(
+    id: string,
+    gameId: string,
+    userId: string,
+    completed: boolean
+  ): Promise<GameMilestone | undefined> {
+    const milestone = this.gameMilestones.get(id);
+    if (milestone?.gameId !== gameId || milestone.userId !== userId) return undefined;
+
+    const updated: GameMilestone = { ...milestone, completedAt: completed ? new Date() : null };
+    this.gameMilestones.set(id, updated);
+    return updated;
+  }
+
+  async deleteGameMilestone(id: string, gameId: string, userId: string): Promise<boolean> {
+    const milestone = this.gameMilestones.get(id);
+    if (!milestone || milestone.gameId !== gameId || milestone.userId !== userId) return false;
+    return this.gameMilestones.delete(id);
+  }
+
+  async getGameScreenshots(gameId: string, userId: string): Promise<GameScreenshot[]> {
+    return Array.from(this.gameScreenshots.values())
+      .filter((s) => s.gameId === gameId && s.userId === userId)
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  }
+
+  async addGameScreenshot(screenshot: {
+    gameId: string;
+    userId: string;
+    filePath: string;
+    caption?: string | null;
+  }): Promise<GameScreenshot> {
+    const gameScreenshot: GameScreenshot = {
+      id: randomUUID(),
+      gameId: screenshot.gameId,
+      userId: screenshot.userId,
+      filePath: screenshot.filePath,
+      caption: screenshot.caption ?? null,
+      createdAt: new Date(),
+    };
+    this.gameScreenshots.set(gameScreenshot.id, gameScreenshot);
+    return gameScreenshot;
+  }
+
+  async updateGameScreenshotCaption(
+    id: string,
+    gameId: string,
+    userId: string,
+    caption: string | null
+  ): Promise<GameScreenshot | undefined> {
+    const screenshot = this.gameScreenshots.get(id);
+    if (screenshot?.gameId !== gameId || screenshot.userId !== userId) return undefined;
+
+    const updated: GameScreenshot = { ...screenshot, caption };
+    this.gameScreenshots.set(id, updated);
+    return updated;
+  }
+
+  async deleteGameScreenshot(id: string, userId: string): Promise<GameScreenshot | undefined> {
+    const screenshot = this.gameScreenshots.get(id);
+    if (screenshot?.userId !== userId) return undefined;
+    this.gameScreenshots.delete(id);
+    return screenshot;
   }
 
   async updateGameSearchResultsAvailable(gameId: string, available: boolean): Promise<void> {
@@ -2141,17 +2280,139 @@ export class DatabaseStorage implements IStorage {
     return updatedGame || undefined;
   }
 
-  async updateGameNotes(
-    id: string,
-    userId: string,
-    notes: string | null
-  ): Promise<Game | undefined> {
-    const [updatedGame] = await db
-      .update(games)
-      .set({ notes })
-      .where(and(eq(games.id, id), eq(games.userId, userId)))
+  async getGameJournalEntries(gameId: string, userId: string): Promise<GameJournalEntry[]> {
+    return db
+      .select()
+      .from(gameJournalEntries)
+      .where(and(eq(gameJournalEntries.gameId, gameId), eq(gameJournalEntries.userId, userId)))
+      .orderBy(desc(gameJournalEntries.createdAt));
+  }
+
+  async addGameJournalEntry(entry: InsertGameJournalEntry): Promise<GameJournalEntry> {
+    const rows = await db
+      .insert(gameJournalEntries)
+      .values({ id: randomUUID(), ...entry })
       .returning();
-    return updatedGame || undefined;
+    return firstOrThrow(rows);
+  }
+
+  async deleteGameJournalEntry(id: string, gameId: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(gameJournalEntries)
+      .where(
+        and(
+          eq(gameJournalEntries.id, id),
+          eq(gameJournalEntries.gameId, gameId),
+          eq(gameJournalEntries.userId, userId)
+        )
+      )
+      .returning();
+    return result.length > 0;
+  }
+
+  async getGameMilestones(gameId: string, userId: string): Promise<GameMilestone[]> {
+    return db
+      .select()
+      .from(gameMilestones)
+      .where(and(eq(gameMilestones.gameId, gameId), eq(gameMilestones.userId, userId)))
+      .orderBy(gameMilestones.createdAt);
+  }
+
+  async addGameMilestone(milestone: InsertGameMilestone): Promise<GameMilestone> {
+    const rows = await db
+      .insert(gameMilestones)
+      .values({ id: randomUUID(), ...milestone })
+      .returning();
+    return firstOrThrow(rows);
+  }
+
+  async updateGameMilestone(
+    id: string,
+    gameId: string,
+    userId: string,
+    completed: boolean
+  ): Promise<GameMilestone | undefined> {
+    const [updated] = await db
+      .update(gameMilestones)
+      .set({ completedAt: completed ? new Date() : null })
+      .where(
+        and(
+          eq(gameMilestones.id, id),
+          eq(gameMilestones.gameId, gameId),
+          eq(gameMilestones.userId, userId)
+        )
+      )
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteGameMilestone(id: string, gameId: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(gameMilestones)
+      .where(
+        and(
+          eq(gameMilestones.id, id),
+          eq(gameMilestones.gameId, gameId),
+          eq(gameMilestones.userId, userId)
+        )
+      )
+      .returning();
+    return result.length > 0;
+  }
+
+  async getGameScreenshots(gameId: string, userId: string): Promise<GameScreenshot[]> {
+    return db
+      .select()
+      .from(gameScreenshots)
+      .where(and(eq(gameScreenshots.gameId, gameId), eq(gameScreenshots.userId, userId)))
+      .orderBy(desc(gameScreenshots.createdAt));
+  }
+
+  async addGameScreenshot(screenshot: {
+    gameId: string;
+    userId: string;
+    filePath: string;
+    caption?: string | null;
+  }): Promise<GameScreenshot> {
+    const rows = await db
+      .insert(gameScreenshots)
+      .values({
+        id: randomUUID(),
+        gameId: screenshot.gameId,
+        userId: screenshot.userId,
+        filePath: screenshot.filePath,
+        caption: screenshot.caption ?? null,
+      })
+      .returning();
+    return firstOrThrow(rows);
+  }
+
+  async updateGameScreenshotCaption(
+    id: string,
+    gameId: string,
+    userId: string,
+    caption: string | null
+  ): Promise<GameScreenshot | undefined> {
+    const [updated] = await db
+      .update(gameScreenshots)
+      .set({ caption })
+      .where(
+        and(
+          eq(gameScreenshots.id, id),
+          eq(gameScreenshots.gameId, gameId),
+          eq(gameScreenshots.userId, userId)
+        )
+      )
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteGameScreenshot(id: string, userId: string): Promise<GameScreenshot | undefined> {
+    const [deleted] = await db
+      .delete(gameScreenshots)
+      .where(and(eq(gameScreenshots.id, id), eq(gameScreenshots.userId, userId)))
+      .returning();
+    return deleted || undefined;
   }
 
   async updateGameSearchResultsAvailable(gameId: string, available: boolean): Promise<void> {

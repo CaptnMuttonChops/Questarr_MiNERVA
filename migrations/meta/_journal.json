@@ -285,8 +285,15 @@
     {
       "idx": 39,
       "version": "6",
-      "when": 1790525860358,
-      "tag": "0039_hard_supernaut",
+      "when": 1790493486714,
+      "tag": "0039_dapper_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1790527791208,
+      "tag": "0040_numerous_silver_centurion",
       "breakpoints": true
     }
   ]

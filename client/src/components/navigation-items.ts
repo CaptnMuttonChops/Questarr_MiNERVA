@@ -4,6 +4,7 @@ import {
   Compass,
   Database,
   Download,
+  Gamepad2,
   HardDrive,
   Home,
   Newspaper,
@@ -22,11 +23,21 @@ export interface AppNavItem {
   title: string;
   url: string;
   icon: LucideIcon;
-  children?: AppNavItem[];
+  /** Nested sub-items, rendered as a collapsible group under this entry (sidebar only). */
+  children?: AppNavItem[] | undefined;
 }
 
 export const primaryNavigation: AppNavItem[] = [
-  { title: "Library", url: "/", icon: Home },
+  {
+    title: "Library",
+    url: "/",
+    icon: Home,
+    children: [
+      { title: "All Games", url: "/", icon: Home },
+      { title: "Wishlist", url: "/wishlist", icon: Star },
+      { title: "Playing", url: "/playing", icon: Gamepad2 },
+    ],
+  },
   {
     title: "Discover",
     url: "/discover",
@@ -38,7 +49,6 @@ export const primaryNavigation: AppNavItem[] = [
   },
   { title: "Downloads", url: "/downloads", icon: Download },
   { title: "Calendar", url: "/calendar", icon: Calendar },
-  { title: "Wishlist", url: "/wishlist", icon: Star },
   { title: "Stats", url: "/stats", icon: PieChart },
 ];
 
@@ -57,11 +67,18 @@ export const mobileBottomNavigation: AppNavItem[] = [
   { title: "Library", url: "/", icon: Home },
   { title: "Discover", url: "/discover", icon: Compass },
   { title: "Downloads", url: "/downloads", icon: Download },
-  { title: "Wishlist", url: "/wishlist", icon: Star },
+  { title: "Playing", url: "/playing", icon: Gamepad2 },
 ];
 
+export function flattenNavigation(items: AppNavItem[]): AppNavItem[] {
+  return items.flatMap((item) => [
+    item,
+    ...(item.children ? flattenNavigation(item.children) : []),
+  ]);
+}
+
 const allNavigation: AppNavItem[] = [
-  ...primaryNavigation.flatMap((item) => (item.children ? [item, ...item.children] : [item])),
+  ...flattenNavigation(primaryNavigation),
   ...managementNavigation,
   ...activityNavigation,
   { title: "Search", url: "/search", icon: Search },

@@ -273,11 +273,26 @@ describe("MemStorage - Game update methods", () => {
     expect(result).toBe(false);
   });
 
+  it("deleteGameJournalEntry returns false for the same user's other game", async () => {
+    const entry = await storage.addGameJournalEntry({ gameId, userId: "u1", note: "Mine" });
+    const result = await storage.deleteGameJournalEntry(entry.id, "some-other-game", "u1");
+    expect(result).toBe(false);
+    expect(await storage.getGameJournalEntries(gameId, "u1")).toHaveLength(1);
+  });
+
   it("addGameMilestone and updateGameMilestone toggle completion", async () => {
     const milestone = await storage.addGameMilestone({ gameId, userId: "u1", label: "Beat boss" });
     expect(milestone.completedAt).toBeNull();
     const updated = await storage.updateGameMilestone(milestone.id, gameId, "u1", true);
     expect(updated?.completedAt).not.toBeNull();
+  });
+
+  it("updateGameMilestone and deleteGameMilestone return undefined/false for the same user's other game", async () => {
+    const milestone = await storage.addGameMilestone({ gameId, userId: "u1", label: "Beat boss" });
+    expect(
+      await storage.updateGameMilestone(milestone.id, "some-other-game", "u1", true)
+    ).toBeUndefined();
+    expect(await storage.deleteGameMilestone(milestone.id, "some-other-game", "u1")).toBe(false);
   });
 
   it("updateGameSearchResultsAvailable sets the flag", async () => {

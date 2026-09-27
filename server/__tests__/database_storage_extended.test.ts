@@ -186,6 +186,12 @@ describe("DatabaseStorage Extended Coverage", () => {
         userId,
         hidden: false,
       });
+      const otherGame = await storage.addGame({
+        title: "Other Game",
+        status: "playing",
+        userId,
+        hidden: false,
+      });
 
       const entry = await storage.addGameJournalEntry({
         gameId: game.id,
@@ -195,6 +201,8 @@ describe("DatabaseStorage Extended Coverage", () => {
       expect(entry.note).toBe("Reached the second boss");
       expect(await storage.getGameJournalEntries(game.id, userId)).toHaveLength(1);
       expect(await storage.deleteGameJournalEntry(entry.id, game.id, "someone-else")).toBe(false);
+      expect(await storage.deleteGameJournalEntry(entry.id, otherGame.id, userId)).toBe(false);
+      expect(await storage.getGameJournalEntries(game.id, userId)).toHaveLength(1);
       expect(await storage.deleteGameJournalEntry(entry.id, game.id, userId)).toBe(true);
 
       const milestone = await storage.addGameMilestone({
@@ -203,8 +211,12 @@ describe("DatabaseStorage Extended Coverage", () => {
         label: "100% completion",
       });
       expect(milestone.completedAt).toBeNull();
+      expect(
+        await storage.updateGameMilestone(milestone.id, otherGame.id, userId, true)
+      ).toBeUndefined();
       const completed = await storage.updateGameMilestone(milestone.id, game.id, userId, true);
       expect(completed?.completedAt).not.toBeNull();
+      expect(await storage.deleteGameMilestone(milestone.id, otherGame.id, userId)).toBe(false);
       expect(await storage.deleteGameMilestone(milestone.id, game.id, userId)).toBe(true);
 
       const screenshot = await storage.addGameScreenshot({
@@ -213,6 +225,9 @@ describe("DatabaseStorage Extended Coverage", () => {
         filePath: "/data/screenshots/example.png",
       });
       expect(screenshot.filePath).toBe("/data/screenshots/example.png");
+      expect(
+        await storage.updateGameScreenshotCaption(screenshot.id, otherGame.id, userId, "Wrong game")
+      ).toBeUndefined();
       const captioned = await storage.updateGameScreenshotCaption(
         screenshot.id,
         game.id,

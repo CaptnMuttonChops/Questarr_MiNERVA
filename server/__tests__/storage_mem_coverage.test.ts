@@ -211,12 +211,15 @@ describe("MemStorage - Game query methods", () => {
 describe("MemStorage - Game update methods", () => {
   let storage: MemStorageType;
   let gameId: string;
+  let otherGameId: string;
 
   beforeEach(async () => {
     storage = new MemStorage();
     await storage.registerSetupUser(makeUser());
     const game = await storage.addGame(makeGame({ userId: "u1", title: "My Game" }));
     gameId = game.id;
+    const otherGame = await storage.addGame(makeGame({ userId: "u1", title: "My Other Game" }));
+    otherGameId = otherGame.id;
   });
 
   it("updateGameStatus returns undefined for missing game", async () => {
@@ -275,7 +278,7 @@ describe("MemStorage - Game update methods", () => {
 
   it("deleteGameJournalEntry returns false for the same user's other game", async () => {
     const entry = await storage.addGameJournalEntry({ gameId, userId: "u1", note: "Mine" });
-    const result = await storage.deleteGameJournalEntry(entry.id, "some-other-game", "u1");
+    const result = await storage.deleteGameJournalEntry(entry.id, otherGameId, "u1");
     expect(result).toBe(false);
     expect(await storage.getGameJournalEntries(gameId, "u1")).toHaveLength(1);
   });
@@ -290,9 +293,9 @@ describe("MemStorage - Game update methods", () => {
   it("updateGameMilestone and deleteGameMilestone return undefined/false for the same user's other game", async () => {
     const milestone = await storage.addGameMilestone({ gameId, userId: "u1", label: "Beat boss" });
     expect(
-      await storage.updateGameMilestone(milestone.id, "some-other-game", "u1", true)
+      await storage.updateGameMilestone(milestone.id, otherGameId, "u1", true)
     ).toBeUndefined();
-    expect(await storage.deleteGameMilestone(milestone.id, "some-other-game", "u1")).toBe(false);
+    expect(await storage.deleteGameMilestone(milestone.id, otherGameId, "u1")).toBe(false);
 
     const unchanged = await storage.getGameMilestones(gameId, "u1");
     expect(unchanged).toHaveLength(1);
@@ -307,7 +310,7 @@ describe("MemStorage - Game update methods", () => {
       caption: "Original caption",
     });
     expect(
-      await storage.updateGameScreenshotCaption(screenshot.id, "some-other-game", "u1", "Hijacked")
+      await storage.updateGameScreenshotCaption(screenshot.id, otherGameId, "u1", "Hijacked")
     ).toBeUndefined();
 
     const unchanged = await storage.getGameScreenshots(gameId, "u1");

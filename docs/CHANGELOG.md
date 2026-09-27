@@ -21,22 +21,68 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 ### Added
 
 - **Optional PostgreSQL backend**: Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md`.
-- **AI auto-download sanity check**: a suspicious auto-download match is now held for manual review (notified over Apprise) instead of downloading automatically. Fails open if the check itself errors (#1077, #1078).
-- **Library filters**: added optional filters to hide shelved games and games already owned from search/discover results (#1089).
-- **Sidebar**: moved the xREL and RSS pages under Discover (#1086).
+- **AI release analysis (TypeSafe/Jev)**: auto-download now runs an AI legitimacy check and holds a suspicious match for manual review (notified over Apprise) instead of downloading it. Fails open if the check itself errors (#1070, #1077, #1078).
+- **Root folder scanning**: discover games already present on disk (#943).
+- **Scan Disk**: safe recursive file discovery under a game's folder, to reconcile files already on disk (#892, #938).
+- **Playnite integration**: API keys, an integration API, and a Playnite extension (#986), with an HTTP-redirect fix (#1010).
 - **Platforms setting**: one Settings > Platforms list now governs every platform selector (Library, Discover, Add Game, download search) (#1018, #1104).
+- **Per-game target platforms** for automatic downloads (#1048).
+- **Platform and release year filters** on game search (#897).
+- **Library filters**: added optional filters to hide shelved games and games already owned from search/discover results (#1089).
+- **"Playing" status** for games (#1043).
+- **Crack status** section on the game detail page (#1012, #1062).
+- **Time to Beat** via IGDB's official endpoint (#1063).
+- **IGDB credential validation** and a test-connection UI (#1064).
+- **Sort menu** on the Library page, plus an indexer-priority sort option for downloads (#980, #963).
+- **Packs/Addons** download category (#876).
+- **Password-protected archives** are now routed to manual review with a password prompt, instead of failing (#1033).
+- **SABnzbd**: archive password support for G4U-style releases (#962).
+- **Debug logging**: opt-in logging of full downloader responses (#927).
+- **`/api/status`**: new dashboard endpoint (#984).
+- **Deployment**: optional Windows installer build and ARM64 production images (#933, #905); a Helm chart, a Proxmox VE LXC script, and CasaOS/Umbrel/Cosmos Cloud app-store definitions (#983, #985, #982).
+- **Telemetry**: automatic reporting of unhandled server errors (#924).
+- **Sidebar**: moved the xREL and RSS pages under Discover (#1086).
+- Evolved the hidden mini-game into a full isometric infiltration game with multi-room levels and a stealth mechanic (#964, #967, #975, #1003).
 
 ### Fixed
 
+- **qBittorrent**: v5+ downloads not tracked when the API returns an async `pending_count`; v5.2+ torrent-upload success not recognized; a fallback for v2.0.2 (#1015, #926, #869).
+- **SABnzbd**: fixed the manual Confirm Import path resolution and a history lookup that missed archived/failed downloads (#940, #1044).
+- **Hardlink import**: falls back to copy when hardlinks are unsupported, including for multi-file downloads (#873, #978).
+- **Nintendo Switch**: fixed silent import failures for NSP/XCI releases (#1021).
+- **Prowlarr**: download links no longer double-wrapped when the proxy URL comes back on a container IP (#1007).
+- **Indexers**: search categories outside 40xx/10xx were being dropped; hardened Newznab/Torznab caps discovery (#1058, #951).
+- **Downloaders**: credential policy now validates the resolved URL, not just `useSsl` (#1061).
+- **IGDB**: validated the rate-limit setting's range; canonicalized/deduped game editions in search results (#1020, #950).
+- **Clipboard**: copy buttons now work on non-secure (HTTP) contexts (#961).
+- **Import**: `modeUsed` was only reporting the last per-file fallback (#931).
 - **Documentation**: `docs/SECRETS.md` §8 wrongly said the `pg-to-sqlite` credential-logging issue was still open; it was fixed in v1.4.0. Now states the affected range (v1.1.0–v1.3.1) and that operators who kept logs from that range should rotate their Postgres password.
 - **Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s own example commands (#1084).
 - **Calendar**: follow-up fixes to the year view's date filtering.
 - Fixed several Postgres backend correctness bugs found in review, including transaction and unique-conflict handling gaps (#1046).
 
+### Changed
+
+- **Auth**: migrated to httpOnly cookies plus CSRF, with a bearer-token fallback (#954).
+- **Settings**: reorganized page tabs by domain; moved the Discord webhook config to the Stats page (#949, #946).
+- **Appearance**: unified theme selection into a single dropdown (#1042).
+- **Calendar**: greyed out past days and games in the year view; optimized its date filtering for performance (#1051, #1076).
+- **Downloads page**: optimized filtering with `useMemo` (#1041).
+- **Mobile**: personal notes collapse behind an Edit button; the Settings tab strip gets scroll-fade hints (#993, #969).
+- **Logs page**: history limit raised from 200 to 1000 lines (#928).
+- Made the pending-imports alert collapsible across multiple reviews (#1038).
+
 ### Security
 
 - **Scan Disk endpoint**: limited recursive traversal with a max file count and time budget, and added rate limiting, reducing DoS exposure on large directory trees (#1069).
 - **Postgres migration**: the connection string is no longer logged.
+- **API auth**: added a default-deny boundary and fixed an unauthenticated `GET /api/config` (#953).
+- **Downloaders**: self-signed-certificate TLS bypass is now opt-in, not default (#947).
+- **Logging**: production no longer hardcodes the debug log level, and secrets are now redacted from logs; API keys/tokens are also redacted before logs are sent to support (#952, #960).
+- **Archive import**: source reads are now restricted to configured downloader roots (#1052).
+- **Indexers**: sanitized the comments URL before linking release titles (XSS) (#895); enforced the HTTP indexer API-key policy with a per-indexer insecure-LAN opt-in (#1022).
+- **Downloader SSRF**: closed a gap in outbound requests (#890).
+- **Search engines**: `/robots.txt` no longer bypasses security headers, and instances are kept out of search-engine indexes (#941, #939).
 - **Dependency Vulnerabilities**: Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
 - **Dependency Vulnerabilities**: Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).
 - **Dependency Vulnerabilities**: Fixed a critical IP-spoofing vulnerability in `proxy-addr`, flagged by Aikido Intel.

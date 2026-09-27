@@ -652,44 +652,50 @@ export default function DiscoverPage() {
               />
             </div>
 
-            {/* By Platform Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <h2 className="text-xl font-semibold">By Platform</h2>
-                <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                  <SelectTriggerWithSpinner
-                    className="w-[180px]"
-                    data-testid="select-platform"
-                    loading={isFetchingPlatforms}
-                  >
-                    <SelectValue placeholder="Select platform" />
-                  </SelectTriggerWithSpinner>
-                  <SelectContent>
-                    {displayPlatforms.map((platform: Platform) => (
-                      <SelectItem key={platform.id} value={platform.name}>
-                        {platform.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* By Platform Section -- hidden entirely (not just skipped-reset)
+                when the Platforms setting selects platforms with zero overlap
+                against the IGDB list: otherwise the carousel would keep
+                showing a stale selectedPlatform's cached results, since the
+                selection-sync effect above has nothing to snap it to. */}
+            {displayPlatforms.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-xl font-semibold">By Platform</h2>
+                  <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+                    <SelectTriggerWithSpinner
+                      className="w-[180px]"
+                      data-testid="select-platform"
+                      loading={isFetchingPlatforms}
+                    >
+                      <SelectValue placeholder="Select platform" />
+                    </SelectTriggerWithSpinner>
+                    <SelectContent>
+                      {displayPlatforms.map((platform: Platform) => (
+                        <SelectItem key={platform.id} value={platform.name}>
+                          {platform.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <GameCarouselSection
+                  title={`${selectedPlatform} Games`}
+                  queryKey={[
+                    "/api/igdb/platform",
+                    debouncedPlatform,
+                    hiddenIgdbIds.size,
+                    hideOwned,
+                    hideWanted,
+                  ]}
+                  queryFn={fetchGamesByPlatform}
+                  staleTime={DISCOVERY_STALE_TIME}
+                  onStatusChange={handleStatusChange}
+                  onTrackGame={handleTrackGame}
+                  onToggleHidden={handleToggleHidden}
+                  isDiscovery={true}
+                />
               </div>
-              <GameCarouselSection
-                title={`${selectedPlatform} Games`}
-                queryKey={[
-                  "/api/igdb/platform",
-                  debouncedPlatform,
-                  hiddenIgdbIds.size,
-                  hideOwned,
-                  hideWanted,
-                ]}
-                queryFn={fetchGamesByPlatform}
-                staleTime={DISCOVERY_STALE_TIME}
-                onStatusChange={handleStatusChange}
-                onTrackGame={handleTrackGame}
-                onToggleHidden={handleToggleHidden}
-                isDiscovery={true}
-              />
-            </div>
+            )}
           </TabsContent>
 
           <TabsContent value="rss" className="space-y-6">

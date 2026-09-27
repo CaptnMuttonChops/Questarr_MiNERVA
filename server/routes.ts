@@ -4687,12 +4687,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const finish = (outcome: { success: boolean; error?: string }) => {
               if (settled) return;
               settled = true;
+              clearTimeout(deadline);
               socket.destroy();
               resolve(outcome);
             };
-            socket.setTimeout(10_000);
-            socket.once("timeout", () =>
-              finish({ success: false, error: "Connection to ClamAV timed out" })
+            // An absolute deadline, not an idle timeout — matches
+            // security-scan.ts's scanFileWithClamAv, so a connection that
+            // stays open without ever closing can't hang this check forever.
+            const deadline = setTimeout(
+              () => finish({ success: false, error: "Connection to ClamAV timed out" }),
+              10_000
             );
             socket.once("error", (err) => finish({ success: false, error: err.message }));
             let data = "";

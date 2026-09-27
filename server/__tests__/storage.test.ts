@@ -986,6 +986,68 @@ describe("MemStorage", () => {
       });
     });
 
+    describe("getQuarantinedDownloads", () => {
+      it("returns only downloads quarantined by the security scan, scoped to the owning user", async () => {
+        const otherUser = await storage.createUser({
+          username: "other-user",
+          password: "hashed",
+        } as InsertUser);
+        const otherGame = await storage.addGame({
+          title: "Other User's Game",
+          igdbId: 5004,
+          status: "wanted",
+          hidden: false,
+          userId: otherUser.id,
+        } as InsertGame);
+
+        const quarantined = await storage.addGameDownload({
+          gameId,
+          downloaderId,
+          downloadHash: "hash-quarantined",
+          downloadTitle: "Flagged-GROUP",
+          status: "downloading",
+          downloadType: "torrent",
+          fileSize: null,
+        } as InsertGameDownload);
+        await storage.updateGameDownloadStatus(
+          quarantined.id,
+          "quarantined",
+          "VirusTotal detected 10 engine(s) flagging this file"
+        );
+
+        await storage.addGameDownload({
+          gameId,
+          downloaderId,
+          downloadHash: "hash-clean",
+          downloadTitle: "Clean-GROUP",
+          status: "completed",
+          downloadType: "torrent",
+          fileSize: null,
+        } as InsertGameDownload);
+
+        const otherUsersQuarantined = await storage.addGameDownload({
+          gameId: otherGame.id,
+          downloaderId,
+          downloadHash: "hash-other-quarantined",
+          downloadTitle: "OtherFlagged-GROUP",
+          status: "downloading",
+          downloadType: "torrent",
+          fileSize: null,
+        } as InsertGameDownload);
+        await storage.updateGameDownloadStatus(otherUsersQuarantined.id, "quarantined");
+
+        const results = await storage.getQuarantinedDownloads(userId);
+
+        expect(results).toHaveLength(1);
+        expect(results[0].id).toBe(quarantined.id);
+        expect(results[0].errorMessage).toBe("VirusTotal detected 10 engine(s) flagging this file");
+      });
+
+      it("returns an empty array when nothing is quarantined", async () => {
+        expect(await storage.getQuarantinedDownloads(userId)).toEqual([]);
+      });
+    });
+
     describe("getTrackedDownloadKeys", () => {
       it("returns an empty set when there are no game downloads", async () => {
         const keys = await storage.getTrackedDownloadKeys();

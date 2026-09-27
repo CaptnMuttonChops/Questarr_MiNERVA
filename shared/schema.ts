@@ -57,6 +57,12 @@ export const userSettings = sqliteTable("user_settings", {
   hideAgeRestrictedContent: integer("hide_age_restricted_content", { mode: "boolean" })
     .notNull()
     .default(true),
+  hideShelvedByDefault: integer("hide_shelved_by_default", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  hideOwnedInHasResults: integer("hide_owned_in_has_results", { mode: "boolean" })
+    .notNull()
+    .default(true),
   // Import Engine Settings
   enablePostProcessing: integer("enable_post_processing", { mode: "boolean" })
     .notNull()
@@ -130,6 +136,11 @@ export interface ImportConfig {
 // route, and the pending-imports UI that decides whether to open
 // LinkGameModal or the regular ImportReviewModal.
 export const GAME_LINK_REQUIRED_STATUS = "game_link_required";
+
+// gameDownloads.status value set when a pre-import security scan (VirusTotal
+// and/or ClamAV) flags the download. The file is moved to a quarantine
+// directory rather than the library, and the reason is recorded in errorMessage.
+export const QUARANTINED_STATUS = "quarantined";
 
 export const IMPORT_TRANSFER_MODES = ["move", "copy", "hardlink", "symlink"] as const;
 
@@ -722,7 +733,8 @@ export type NotificationEvent =
   | "gameUpdates"
   | "xrelRelease"
   | "steamSync"
-  | "errorDetected";
+  | "errorDetected"
+  | "securityAlert";
 
 export type NotificationPreferences = Record<
   NotificationEvent,
@@ -741,6 +753,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   xrelRelease: { inApp: true, apprise: true },
   steamSync: { inApp: true, apprise: false },
   errorDetected: { inApp: true, apprise: false },
+  securityAlert: { inApp: true, apprise: true },
 };
 
 export interface DownloadSummary {

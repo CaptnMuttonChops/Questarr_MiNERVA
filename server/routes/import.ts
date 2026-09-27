@@ -425,12 +425,13 @@ importRouter.get("/hardlink/check", async (_req, res) => {
 importRouter.get("/pending", async (_req, res) => {
   try {
     const userId = res.locals.userId as string;
-    const [pathReviews, gameLinkReviews] = await Promise.all([
+    const [pathReviews, gameLinkReviews, quarantinedReviews] = await Promise.all([
       storage.getPendingImportReviews(userId),
       // Not scoped by userId — a download whose game record is missing has no
       // game row left to determine ownership from. Fine for Questarr's
       // single-user model.
       storage.getUnlinkedImportReviews(),
+      storage.getQuarantinedDownloads(userId),
     ]);
 
     const pathResults = await Promise.all(
@@ -462,7 +463,22 @@ importRouter.get("/pending", async (_req, res) => {
       errorMessage: d.errorMessage,
     }));
 
-    res.json([...gameLinkResults, ...pathResults]);
+    const quarantinedResults = await Promise.all(
+      quarantinedReviews.map(async (d) => {
+        const game = await storage.getGame(d.gameId);
+        return {
+          id: d.id,
+          gameTitle: game?.title || d.downloadTitle,
+          downloadTitle: d.downloadTitle,
+          status: d.status,
+          downloaderId: d.downloaderId,
+          createdAt: d.addedAt,
+          errorMessage: d.errorMessage,
+        };
+      })
+    );
+
+    res.json([...gameLinkResults, ...quarantinedResults, ...pathResults]);
   } catch (error) {
     logger.error({ error }, "Error fetching pending imports");
     res.status(500).json({ error: "Internal server error" });

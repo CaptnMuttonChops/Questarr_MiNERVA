@@ -182,6 +182,14 @@ describe("Library filter buttons", () => {
           }),
         } as Response);
       }
+      // These games are all "owned"; disable the owned-in-has-results default so
+      // these tests exercise the downloads/search-results pills in isolation.
+      if (url.includes("/api/settings")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ hideOwnedInHasResults: false, hideShelvedByDefault: false }),
+        } as Response);
+      }
       return Promise.resolve({
         ok: true,
         json: async () => [gameWithDownload, gameWithSearchResult],

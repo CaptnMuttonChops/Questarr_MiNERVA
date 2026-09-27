@@ -57,6 +57,12 @@ export const userSettings = sqliteTable("user_settings", {
   hideAgeRestrictedContent: integer("hide_age_restricted_content", { mode: "boolean" })
     .notNull()
     .default(true),
+  hideShelvedByDefault: integer("hide_shelved_by_default", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  hideOwnedInHasResults: integer("hide_owned_in_has_results", { mode: "boolean" })
+    .notNull()
+    .default(true),
   // Import Engine Settings
   enablePostProcessing: integer("enable_post_processing", { mode: "boolean" })
     .notNull()
@@ -669,6 +675,34 @@ function validateUserSettingsEnums(
       path: ["transferMode"],
       message: "Invalid transfer mode",
     });
+  }
+
+  // JSON array columns round-trip through the client, so a malformed payload
+  // (
+  // "oops", 42, {...}) would be persisted verbatim and later crash consumers
+  // that iterate or spread it. Reject anything that is not an array of the
+  // declared element type.
+  const arrayFields: Array<{ key: string; element: "string" | "number" }> = [
+    { key: "importPlatformIds", element: "number" },
+    { key: "ignoredExtensions", element: "string" },
+  ];
+  for (const { key, element } of arrayFields) {
+    const raw = value[key];
+    if (raw === undefined || raw === null) continue;
+    const typeOk =
+      Array.isArray(raw) &&
+      raw.every((item) =>
+        element === "number"
+          ? typeof item === "number" && Number.isSafeInteger(item) && item > 0
+          : typeof item === "string"
+      );
+    if (!typeOk) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} must be an array of ${element}s`,
+      });
+    }
   }
 }
 

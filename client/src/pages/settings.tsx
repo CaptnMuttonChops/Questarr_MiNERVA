@@ -22,6 +22,8 @@ import {
   Monitor,
   Radio,
   Sparkles,
+  Archive,
+  Filter,
 } from "lucide-react";
 import { NexusModsIcon } from "@/components/NexusModsIcon";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,6 +74,7 @@ import {
   type DownloaderDebugLoggingResponse,
 } from "@shared/schema";
 import { parseJsonStringArray, CANONICAL_PLATFORMS } from "@shared/title-utils";
+import PlatformsSettings from "@/components/PlatformsSettings";
 import ImportSettings from "@/components/ImportSettings";
 import { IgdbHelpPopover, IgdbTestConnectionButton } from "@/components/IgdbCredentialsHelper";
 
@@ -96,6 +99,103 @@ const NOTIFICATION_EVENT_ROWS: { key: NotificationEvent; label: string; group: s
   { key: "steamSync", label: "Steam Wishlist Synced", group: "integrations" },
   { key: "errorDetected", label: "Error Detected", group: "system" },
 ];
+
+function SettingsToggleRow({
+  id,
+  label,
+  description,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  label: React.ReactNode;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="space-y-0.5">
+        <Label htmlFor={id} className="text-sm font-medium">
+          {label}
+        </Label>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+function SettingsSaveButton({
+  onClick,
+  pending,
+  icon: Icon,
+  label,
+}: {
+  onClick: () => void;
+  pending: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}) {
+  return (
+    <div className="flex justify-end pt-4 border-t">
+      <Button onClick={onClick} disabled={pending} className="gap-2">
+        {pending ? (
+          <>
+            <RefreshCw className="h-4 w-4 motion-safe:animate-spin" />
+            Saving...
+          </>
+        ) : (
+          <>
+            <Icon className="h-4 w-4" />
+            {label}
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function SettingsFilterCard({
+  icon: Icon,
+  title,
+  description,
+  onSave,
+  savePending,
+  saveIcon,
+  saveLabel,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  onSave: () => void;
+  savePending: boolean;
+  saveIcon: React.ComponentType<{ className?: string }>;
+  saveLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center space-x-3">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-lg">{title}</CardTitle>
+        </div>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {children}
+        <SettingsSaveButton
+          onClick={onSave}
+          pending={savePending}
+          icon={saveIcon}
+          label={saveLabel}
+        />
+      </CardContent>
+    </Card>
+  );
+}
 
 /**
  * Configures application preferences, integrations, notifications, account security, and system maintenance settings.
@@ -292,6 +392,8 @@ export default function SettingsPage() {
   const [xrelP2pReleases, setXrelP2pReleases] = useState(false);
   const [hideAdultContent, setHideAdultContent] = useState(true);
   const [hideAgeRestrictedContent, setHideAgeRestrictedContent] = useState(true);
+  const [hideShelvedByDefault, setHideShelvedByDefault] = useState(true);
+  const [hideOwnedInHasResults, setHideOwnedInHasResults] = useState(true);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const [xrelApiBase, setXrelApiBase] = useState("");
   const [nexusApiKey, setNexusApiKey] = useState("");
@@ -351,6 +453,8 @@ export default function SettingsPage() {
       setSteamSyncIntervalHours(userSettings.steamSyncIntervalHours ?? 24);
       setHideAdultContent(userSettings.hideAdultContent ?? true);
       setHideAgeRestrictedContent(userSettings.hideAgeRestrictedContent ?? true);
+      setHideShelvedByDefault(userSettings.hideShelvedByDefault ?? true);
+      setHideOwnedInHasResults(userSettings.hideOwnedInHasResults ?? true);
       setTelemetryEnabled(userSettings.telemetryEnabled ?? false);
       settingsLoadedRef.current = true;
     }
@@ -890,6 +994,16 @@ export default function SettingsPage() {
     });
   };
 
+  const handleSaveLibraryFilters = () => {
+    updateSettingsMutation.mutate({
+      updates: {
+        hideShelvedByDefault,
+        hideOwnedInHasResults,
+      },
+      successMessage: "Your library filtering defaults have been saved.",
+    });
+  };
+
   const handleSaveTelemetry = () => {
     updateSettingsMutation.mutate({
       updates: { telemetryEnabled },
@@ -1061,70 +1175,64 @@ export default function SettingsPage() {
   // discovery (what search/discover surface), so the same card is rendered in
   // both the Appearance and Discovery & Downloads tabs.
   const contentFilteringCard = (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center space-x-3">
-          <EyeOff className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg">Content Filtering</CardTitle>
-        </div>
-        <CardDescription>
-          Control which games appear in your library and discovery results
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="hide-adult-content" className="text-sm font-medium">
-              Hide erotic content
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Hide games flagged with an explicit/erotic theme from your library, search, and
-              discovery pages
-            </p>
-          </div>
-          <Switch
-            id="hide-adult-content"
-            checked={hideAdultContent}
-            onCheckedChange={setHideAdultContent}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="hide-age-restricted-content" className="text-sm font-medium">
-              Hide age-restricted content
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Hide games rated ESRB Adults Only (AO) or PEGI 18 from your library, search, and
-              discovery pages
-            </p>
-          </div>
-          <Switch
-            id="hide-age-restricted-content"
-            checked={hideAgeRestrictedContent}
-            onCheckedChange={setHideAgeRestrictedContent}
-          />
-        </div>
-        <div className="flex justify-end pt-4 border-t">
-          <Button
-            onClick={handleSaveContentFilter}
-            disabled={updateSettingsMutation.isPending}
-            className="gap-2"
-          >
-            {updateSettingsMutation.isPending ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <EyeOff className="h-4 w-4" />
-                Save Content Filtering
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <SettingsFilterCard
+      icon={EyeOff}
+      title="Content Filtering"
+      description="Control which games appear in your library and discovery results"
+      onSave={handleSaveContentFilter}
+      savePending={updateSettingsMutation.isPending}
+      saveIcon={EyeOff}
+      saveLabel="Save Content Filtering"
+    >
+      <SettingsToggleRow
+        id="hide-adult-content"
+        label="Hide erotic content"
+        description="Hide games flagged with an explicit/erotic theme from your library, search, and discovery pages"
+        checked={hideAdultContent}
+        onCheckedChange={setHideAdultContent}
+      />
+      <SettingsToggleRow
+        id="hide-age-restricted-content"
+        label="Hide age-restricted content"
+        description="Hide games rated ESRB Adults Only (AO) or PEGI 18 from your library, search, and discovery pages"
+        checked={hideAgeRestrictedContent}
+        onCheckedChange={setHideAgeRestrictedContent}
+      />
+    </SettingsFilterCard>
+  );
+
+  const libraryFilterRows = [
+    {
+      id: "hide-shelved-by-default",
+      label: "Hide shelved games by default",
+      description:
+        "Keep shelved games out of the library view unless you filter by the Shelved status",
+      checked: hideShelvedByDefault,
+      onCheckedChange: setHideShelvedByDefault,
+    },
+    {
+      id: "hide-owned-in-has-results",
+      label: "Hide owned games in “Has Results” filter",
+      description: "When the Has Results filter is active, skip games you already own",
+      checked: hideOwnedInHasResults,
+      onCheckedChange: setHideOwnedInHasResults,
+    },
+  ];
+
+  const libraryFilteringCard = (
+    <SettingsFilterCard
+      icon={Filter}
+      title="Library Filtering"
+      description="Choose which games are hidden by default in your library"
+      onSave={handleSaveLibraryFilters}
+      savePending={updateSettingsMutation.isPending}
+      saveIcon={Archive}
+      saveLabel="Save Library Filtering"
+    >
+      {libraryFilterRows.map((row) => (
+        <SettingsToggleRow key={row.id} {...row} />
+      ))}
+    </SettingsFilterCard>
   );
 
   return (
@@ -1161,6 +1269,7 @@ export default function SettingsPage() {
                 <TabsTrigger value="appearance">Appearance</TabsTrigger>
                 <TabsTrigger value="discovery">Discovery & Downloads</TabsTrigger>
                 <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                <TabsTrigger value="platforms">Platforms</TabsTrigger>
                 <TabsTrigger value="integrations">Integrations</TabsTrigger>
                 <TabsTrigger value="import">Import</TabsTrigger>
                 <TabsTrigger value="account-security">Account & Security</TabsTrigger>
@@ -1234,6 +1343,12 @@ export default function SettingsPage() {
             </Card>
 
             {contentFilteringCard}
+
+            {libraryFilteringCard}
+          </TabsContent>
+
+          <TabsContent value="platforms" className="space-y-6">
+            <PlatformsSettings />
           </TabsContent>
 
           <TabsContent value="discovery" className="space-y-6">

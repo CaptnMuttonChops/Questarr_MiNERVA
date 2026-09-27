@@ -84,6 +84,8 @@ const defaultUserSettings = {
   preferredPlatform: "",
   xrelSceneReleases: true,
   xrelP2pReleases: false,
+  hideShelvedByDefault: true,
+  hideOwnedInHasResults: true,
 };
 
 describe("SettingsPage", () => {
@@ -161,6 +163,33 @@ describe("SettingsPage", () => {
     expect(screen.queryByLabelText("Search Interval (hours)")).not.toBeInTheDocument();
   });
 
+  it("renders library filtering defaults and saves them via the PATCH mutation", async () => {
+    const { apiRequest } = await import("@/lib/queryClient");
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <SettingsPage />
+      </QueryClientProvider>
+    );
+
+    await screen.findByText("Settings");
+
+    const hideShelvedToggle = await screen.findByLabelText("Hide shelved games by default");
+    expect(hideShelvedToggle).toBeChecked();
+    const hideOwnedToggle = screen.getByLabelText("Hide owned games in “Has Results” filter");
+    expect(hideOwnedToggle).toBeChecked();
+
+    fireEvent.click(hideShelvedToggle);
+    fireEvent.click(screen.getByRole("button", { name: /save library filtering/i }));
+
+    await waitFor(() => {
+      expect(apiRequest).toHaveBeenCalledWith(
+        "PATCH",
+        "/api/settings",
+        expect.objectContaining({ hideShelvedByDefault: false, hideOwnedInHasResults: true })
+      );
+    });
+  });
+
   it("saves auto-search settings via the PATCH mutation", async () => {
     const { apiRequest } = await import("@/lib/queryClient");
     render(
@@ -211,6 +240,21 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByTestId("auto-download-rules")).toBeInTheDocument();
     expect(screen.getByTestId("preferred-release-groups")).toBeInTheDocument();
+  });
+
+  it("switches to the Platforms tab and renders the platform picker", async () => {
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <SettingsPage />
+      </QueryClientProvider>
+    );
+
+    await screen.findByText("Settings");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Platforms" }));
+
+    expect(
+      await screen.findByText("Choose the platforms you use.", { exact: false })
+    ).toBeInTheDocument();
   });
 
   it("switches to the Integrations tab and saves a Steam ID", async () => {

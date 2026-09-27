@@ -139,7 +139,7 @@ export default function AppSidebar({ activeItem = "/", onNavigate }: Readonly<Ap
                               <SidebarMenuSubButton
                                 asChild
                                 isActive={activeItem === child.url}
-                                data-testid={`nav-${child.title.toLowerCase()}`}
+                                data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`}
                               >
                                 <button
                                   onClick={() => handleNavigation(child.url)}

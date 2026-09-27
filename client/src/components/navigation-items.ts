@@ -38,11 +38,17 @@ export const primaryNavigation: AppNavItem[] = [
       { title: "Playing", url: "/playing", icon: Gamepad2 },
     ],
   },
-  { title: "Discover", url: "/discover", icon: Compass },
+  {
+    title: "Discover",
+    url: "/discover",
+    icon: Compass,
+    children: [
+      { title: "xREL.to Releases", url: "/xrel", icon: Newspaper },
+      { title: "RSS Feeds", url: "/rss", icon: Rss },
+    ],
+  },
   { title: "Downloads", url: "/downloads", icon: Download },
   { title: "Calendar", url: "/calendar", icon: Calendar },
-  { title: "xREL.to Releases", url: "/xrel", icon: Newspaper },
-  { title: "RSS Feeds", url: "/rss", icon: Rss },
   { title: "Stats", url: "/stats", icon: PieChart },
 ];
 

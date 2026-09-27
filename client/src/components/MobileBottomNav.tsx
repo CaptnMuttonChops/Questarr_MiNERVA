@@ -18,7 +18,7 @@ interface MobileBottomNavProps {
 
 const pinnedUrls = new Set(mobileBottomNavigation.map((i) => i.url));
 
-// Flatten so nested entries (e.g. Wishlist under Library) still surface here.
+// Flatten so nested entries (e.g. Wishlist under Library, xREL/RSS under Discover) still surface here.
 const morePages: AppNavItem[] = flattenNavigation(primaryNavigation).filter(
   (i) => !pinnedUrls.has(i.url)
 );

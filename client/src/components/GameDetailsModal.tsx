@@ -160,6 +160,40 @@ const EXPANSION_CATEGORY_LABELS: Record<string, string> = {
   packs: "Packs",
 };
 
+// A tab trigger showing an icon, a label (hidden below sm, shown as a tooltip
+// instead), and an optional count badge. Shared by every tab in the Game
+// Details modal so the icon/label/badge/tooltip structure isn't repeated per tab.
+function GameTabTrigger({
+  value,
+  label,
+  ariaLabel = label,
+  icon,
+  count,
+}: {
+  value: string;
+  label: string;
+  ariaLabel?: string;
+  icon: React.ReactNode;
+  count?: number | undefined;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <TabsTrigger value={value} aria-label={ariaLabel} className="gap-1.5">
+          {icon}
+          <span className="hidden sm:inline">{label}</span>
+          {count !== undefined && count > 0 && (
+            <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
+              {count}
+            </Badge>
+          )}
+        </TabsTrigger>
+      </TooltipTrigger>
+      <TooltipContent className="sm:hidden">{ariaLabel}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ── Website links config ──────────────────────────────────────────────────────
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
@@ -1132,87 +1166,50 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
         className="flex-1 flex flex-col min-h-0 mt-4"
       >
         <TabsList className="flex-shrink-0 w-full justify-start overflow-x-auto">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="overview" aria-label="Overview" className="gap-1.5">
-                <Info className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Overview</span>
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Overview</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="downloads" aria-label="Downloads" className="gap-1.5">
-                <Download className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Downloads</span>
-                {gameDownloads.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
-                    {gameDownloads.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Downloads</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="media" aria-label="Media" className="gap-1.5">
-                <Image className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Media</span>
-                {game.screenshots && game.screenshots.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
-                    {game.screenshots.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Media</TooltipContent>
-          </Tooltip>
+          <GameTabTrigger
+            value="overview"
+            label="Overview"
+            icon={<Info className="h-3.5 w-3.5 sm:hidden" />}
+          />
+          <GameTabTrigger
+            value="downloads"
+            label="Downloads"
+            icon={<Download className="h-3.5 w-3.5 sm:hidden" />}
+            count={gameDownloads.length}
+          />
+          <GameTabTrigger
+            value="media"
+            label="Media"
+            icon={<Image className="h-3.5 w-3.5 sm:hidden" />}
+            count={game.screenshots?.length}
+          />
           {game.expansions && game.expansions.length > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="dlc" aria-label="DLC" className="gap-1.5">
-                  <Layers className="h-3.5 w-3.5 sm:hidden" />
-                  <span className="hidden sm:inline">DLC</span>
-                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
-                    {game.expansions.length}
-                  </Badge>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">DLC</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="dlc"
+              label="DLC"
+              icon={<Layers className="h-3.5 w-3.5 sm:hidden" />}
+              count={game.expansions.length}
+            />
           )}
           {!isDiscoveryId(game.id) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="files" aria-label="Files on disk" className="gap-1.5">
-                  <File className="h-3.5 w-3.5 sm:hidden" />
-                  <span className="hidden sm:inline">Files</span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">Files</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="files"
+              label="Files"
+              ariaLabel="Files on disk"
+              icon={<File className="h-3.5 w-3.5 sm:hidden" />}
+            />
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="links" aria-label="Links & Ratings" className="gap-1.5">
-                <Link className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Links &amp; Ratings</span>
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Links &amp; Ratings</TooltipContent>
-          </Tooltip>
+          <GameTabTrigger
+            value="links"
+            label="Links & Ratings"
+            icon={<Link className="h-3.5 w-3.5 sm:hidden" />}
+          />
           {nexusDomain && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="mods" aria-label="Mods" className="gap-1.5">
-                  <NexusModsIcon className="h-3.5 w-3.5 text-amber-500 sm:mr-1" />
-                  <span className="hidden sm:inline">Mods</span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">Mods</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="mods"
+              label="Mods"
+              icon={<NexusModsIcon className="h-3.5 w-3.5 text-amber-500 sm:mr-1" />}
+            />
           )}
         </TabsList>
 

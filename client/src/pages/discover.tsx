@@ -255,7 +255,7 @@ export default function DiscoverPage() {
     if (config && !config.igdb.configured) return;
     if (displayPlatforms.length === 0) return;
     if (displayPlatforms.some((p) => p.name === selectedPlatform)) return;
-    setSelectedPlatform(displayPlatforms[0].name);
+    setSelectedPlatform(displayPlatforms[0]!.name);
   }, [config, displayPlatforms, selectedPlatform]);
 
   const trackGameMutation = useMutation({

@@ -26,13 +26,16 @@ export interface IgdbPlatform {
  * platform IGDB reports. The download-search filter only sees release-title
  * labels, so it can be narrowed for these ids and no others.
  */
-export const IGDB_ID_TO_CANONICAL_PLATFORM: Record<number, CanonicalPlatform> = {
+export const IGDB_ID_TO_CANONICAL_PLATFORM: Record<number, CanonicalPlatform | "Xbox"> = {
   6: "PC",
   167: "PS5",
   48: "PS4",
   9: "PS3",
   130: "Switch",
   169: "Xbox Series",
+  // The original Xbox is IGDB id 11, but this repo's own generation-specific
+  // "Xbox Classic" label wouldn't match older release names tagged with the
+  // legacy account-wide "Xbox" umbrella `matchesPlatformFilter` understands.
   11: "Xbox",
   14: "Mac",
   3: "Linux",
@@ -48,9 +51,9 @@ function normalizeSelectedIds(selectedIds: unknown): number[] {
 /**
  * Release-title labels covered by the selected IGDB platform ids.
  */
-export function canonicalPlatformsForIgdbIds(selectedIds: unknown): CanonicalPlatform[] {
+export function canonicalPlatformsForIgdbIds(selectedIds: unknown): (CanonicalPlatform | "Xbox")[] {
   const ids = normalizeSelectedIds(selectedIds);
-  const labels: CanonicalPlatform[] = [];
+  const labels: (CanonicalPlatform | "Xbox")[] = [];
   for (const id of ids) {
     const label = IGDB_ID_TO_CANONICAL_PLATFORM[id];
     if (label && !labels.includes(label)) labels.push(label);

@@ -141,26 +141,30 @@ function isInsideFileBrowserRoot(candidate: string): boolean {
  */
 async function resolveCanonicalWithinFileBrowserRoot(input: string): Promise<string | null> {
   const resolved = path.resolve(FILE_BROWSER_ROOT, input);
-  // Lexical check first, inline and gating every realpath() below, so CodeQL's
-  // path-injection analysis sees the filesystem calls as guarded.
+  // Lexical check first, inline and gating the realpath() below, so CodeQL's
+  // path-injection analysis sees the filesystem call as guarded.
   const lexical = path.relative(FILE_BROWSER_ROOT, resolved);
-  if (lexical !== ".." && !lexical.startsWith(".." + path.sep) && !path.isAbsolute(lexical)) {
-    const missing: string[] = [];
-    let existing = resolved;
-    for (;;) {
-      try {
-        const canonical = path.join(await fs.promises.realpath(existing), ...missing);
-        return isInsideFileBrowserRoot(canonical) ? canonical : null;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        const parent = path.dirname(existing);
-        if (parent === existing) return null;
-        missing.unshift(path.basename(existing));
-        existing = parent;
-      }
+  if (lexical === ".." || lexical.startsWith(".." + path.sep) || path.isAbsolute(lexical)) {
+    return null;
+  }
+
+  // Walk up to the nearest existing ancestor, remembering the missing components.
+  const missing: string[] = [];
+  let existing = resolved;
+  let canonicalBase: string | null = null;
+  while (canonicalBase === null) {
+    try {
+      canonicalBase = await fs.promises.realpath(existing);
+    } catch (error) {
+      const parent = path.dirname(existing);
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" || parent === existing) throw error;
+      missing.unshift(path.basename(existing));
+      existing = parent;
     }
   }
-  return null;
+
+  const canonical = path.join(canonicalBase, ...missing);
+  return isInsideFileBrowserRoot(canonical) ? canonical : null;
 }
 
 type IgdbConfigSource = "env" | "database" | undefined;

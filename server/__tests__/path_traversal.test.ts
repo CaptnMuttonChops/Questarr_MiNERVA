@@ -109,6 +109,7 @@ vi.mock("../ssl.js", () => ({
 
 // Import registerRoutes AFTER mocking
 import { registerRoutes } from "../routes.js";
+import { configLoader } from "../config-loader.js";
 
 describe("Path Traversal Vulnerability in Routes", () => {
   let app: express.Express;
@@ -182,6 +183,32 @@ describe("Path Traversal Vulnerability in Routes", () => {
       path.resolve(root, "config/ssl/server.crt"),
       path.resolve(root, "config/ssl/server.key")
     );
+  });
+
+  it("saves the root-contained cert/key paths after successful validation", async () => {
+    mockValidateCertFiles.mockResolvedValue({ valid: true });
+    const saveConfig = vi.spyOn(configLoader, "saveConfig").mockResolvedValue(undefined);
+    try {
+      const app = await createApp();
+      const root = fs.realpathSync(process.cwd());
+
+      const response = await request(app).patch("/api/settings/ssl").send({
+        enabled: true,
+        port: 9898,
+        certPath: "config/ssl/server.crt",
+        keyPath: "config/ssl/server.key",
+      });
+
+      expect(response.status).toBe(200);
+      expect(saveConfig).toHaveBeenCalledWith({
+        ssl: expect.objectContaining({
+          certPath: path.resolve(root, "config/ssl/server.crt"),
+          keyPath: path.resolve(root, "config/ssl/server.key"),
+        }),
+      });
+    } finally {
+      saveConfig.mockRestore();
+    }
   });
 
   it("rejects a cert path that is a symlink inside the root pointing outside it", async () => {

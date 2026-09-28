@@ -126,16 +126,19 @@ import { readLastLogLines } from "./log-file.js";
 // Root directory for the file system browser; restrict browsing to this tree
 const FILE_BROWSER_ROOT = fs.realpathSync(process.cwd());
 
+/** Returns true when `candidate` is FILE_BROWSER_ROOT itself or a path beneath it. */
 function isInsideFileBrowserRoot(candidate: string): boolean {
   const relative = path.relative(FILE_BROWSER_ROOT, candidate);
   return relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
 }
 
-// Resolves a user-supplied path against FILE_BROWSER_ROOT, following symlinks, and
-// returns the canonical path only if it stays inside the root (null otherwise). For a
-// path that doesn't fully exist yet, the nearest existing ancestor is canonicalized and
-// the missing components re-appended, so a symlinked directory anywhere along the way
-// can't point a not-yet-created file outside the root.
+/**
+ * Resolves a user-supplied path against FILE_BROWSER_ROOT, following symlinks, and
+ * returns the canonical path only if it stays inside the root (null otherwise). For a
+ * path that doesn't fully exist yet, the nearest existing ancestor is canonicalized and
+ * the missing components re-appended, so a symlinked directory anywhere along the way
+ * can't point a not-yet-created file outside the root.
+ */
 async function resolveCanonicalWithinFileBrowserRoot(input: string): Promise<string | null> {
   const resolved = path.resolve(FILE_BROWSER_ROOT, input);
   // Lexical check first, inline and gating every realpath() below, so CodeQL's

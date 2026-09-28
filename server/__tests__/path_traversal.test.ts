@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import express from "express";
+import fs from "fs";
+import path from "path";
 
 // Use vi.hoisted to create the mock object
 const { mockConfig } = vi.hoisted(() => {
@@ -96,6 +98,14 @@ vi.mock("../steam-routes.js", () => ({
   steamRoutes: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+const { mockValidateCertFiles } = vi.hoisted(() => ({
+  mockValidateCertFiles: vi.fn(),
+}));
+
+vi.mock("../ssl.js", () => ({
+  validateCertFiles: mockValidateCertFiles,
+}));
+
 // Import registerRoutes AFTER mocking
 import { registerRoutes } from "../routes.js";
 
@@ -152,5 +162,24 @@ describe("Path Traversal Vulnerability in Routes", () => {
 
     expect(response.status).toBe(403);
     expect(response.body.error).toMatch(/Access to key path is not allowed/);
+  });
+
+  it("validates the root-contained cert/key paths, not the raw request values", async () => {
+    mockValidateCertFiles.mockResolvedValue({ valid: false, error: "stop here" });
+    const app = await createApp();
+    const root = fs.realpathSync(process.cwd());
+
+    const response = await request(app).patch("/api/settings/ssl").send({
+      enabled: true,
+      port: 9898,
+      certPath: "config/ssl/server.crt",
+      keyPath: "config/ssl/server.key",
+    });
+
+    expect(response.status).toBe(400);
+    expect(mockValidateCertFiles).toHaveBeenCalledWith(
+      path.resolve(root, "config/ssl/server.crt"),
+      path.resolve(root, "config/ssl/server.key")
+    );
   });
 });

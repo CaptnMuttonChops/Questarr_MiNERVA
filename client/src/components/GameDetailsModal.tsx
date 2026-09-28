@@ -69,6 +69,7 @@ import {
   Image,
   Link,
   File,
+  Layers,
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
@@ -149,6 +150,48 @@ function scoreColor(score: number): string {
   if (score >= 7.5) return "bg-emerald-600 text-white";
   if (score >= 6.0) return "bg-amber-500 text-white";
   return "bg-red-600 text-white";
+}
+
+const EXPANSION_CATEGORY_LABELS: Record<string, string> = {
+  main: "Main",
+  dlc: "DLC",
+  update: "Update",
+  extra: "Extra",
+  packs: "Packs",
+};
+
+// A tab trigger showing an icon, a label (hidden below sm, shown as a tooltip
+// instead), and an optional count badge. Shared by every tab in the Game
+// Details modal so the icon/label/badge/tooltip structure isn't repeated per tab.
+function GameTabTrigger({
+  value,
+  label,
+  ariaLabel = label,
+  icon,
+  count,
+}: {
+  readonly value: string;
+  readonly label: string;
+  readonly ariaLabel?: string;
+  readonly icon: React.ReactNode;
+  readonly count?: number | undefined;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <TabsTrigger value={value} aria-label={ariaLabel} className="gap-1.5">
+          {icon}
+          <span className="hidden sm:inline">{label}</span>
+          {count !== undefined && count > 0 && (
+            <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
+              {count}
+            </Badge>
+          )}
+        </TabsTrigger>
+      </TooltipTrigger>
+      <TooltipContent className="sm:hidden">{ariaLabel}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 // ── Website links config ──────────────────────────────────────────────────────
@@ -983,84 +1026,57 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
         className="flex-1 flex flex-col min-h-0 mt-4"
       >
         <TabsList className="flex-shrink-0 w-full justify-start overflow-x-auto">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="overview" aria-label="Overview" className="gap-1.5">
-                <Info className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Overview</span>
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Overview</TooltipContent>
-          </Tooltip>
+          <GameTabTrigger
+            value="overview"
+            label="Overview"
+            icon={<Info className="h-3.5 w-3.5 sm:hidden" />}
+          />
           {!isDiscoveryId(game.id) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="journal" aria-label="Journal" className="gap-1.5">
-                  <BookOpen className="h-3.5 w-3.5 sm:hidden" />
-                  <span className="hidden sm:inline">Journal</span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">Journal</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="journal"
+              label="Journal"
+              icon={<BookOpen className="h-3.5 w-3.5 sm:hidden" />}
+            />
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="downloads" aria-label="Downloads" className="gap-1.5">
-                <Download className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Downloads</span>
-                {gameDownloads.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
-                    {gameDownloads.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Downloads</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="media" aria-label="Media" className="gap-1.5">
-                <Image className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Media</span>
-                {game.screenshots && game.screenshots.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
-                    {game.screenshots.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Media</TooltipContent>
-          </Tooltip>
+          <GameTabTrigger
+            value="downloads"
+            label="Downloads"
+            icon={<Download className="h-3.5 w-3.5 sm:hidden" />}
+            count={gameDownloads.length}
+          />
+          <GameTabTrigger
+            value="media"
+            label="Media"
+            icon={<Image className="h-3.5 w-3.5 sm:hidden" />}
+            count={game.screenshots?.length}
+          />
+          {game.expansions && game.expansions.length > 0 && (
+            <GameTabTrigger
+              value="dlc"
+              label="DLC"
+              icon={<Layers className="h-3.5 w-3.5 sm:hidden" />}
+              count={game.expansions.length}
+            />
+          )}
           {!isDiscoveryId(game.id) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="files" aria-label="Files on disk" className="gap-1.5">
-                  <File className="h-3.5 w-3.5 sm:hidden" />
-                  <span className="hidden sm:inline">Files</span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">Files</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="files"
+              label="Files"
+              ariaLabel="Files on disk"
+              icon={<File className="h-3.5 w-3.5 sm:hidden" />}
+            />
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="links" aria-label="Links & Ratings" className="gap-1.5">
-                <Link className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Links &amp; Ratings</span>
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Links &amp; Ratings</TooltipContent>
-          </Tooltip>
+          <GameTabTrigger
+            value="links"
+            label="Links & Ratings"
+            icon={<Link className="h-3.5 w-3.5 sm:hidden" />}
+          />
           {nexusDomain && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="mods" aria-label="Mods" className="gap-1.5">
-                  <NexusModsIcon className="h-3.5 w-3.5 text-amber-500 sm:mr-1" />
-                  <span className="hidden sm:inline">Mods</span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">Mods</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="mods"
+              label="Mods"
+              icon={<NexusModsIcon className="h-3.5 w-3.5 text-amber-500 sm:mr-1" />}
+            />
           )}
         </TabsList>
 
@@ -1356,6 +1372,80 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
             </div>
           </ScrollArea>
         </TabsContent>
+
+        {/* ── DLC tab ── */}
+        {game.expansions && game.expansions.length > 0 && (
+          <TabsContent
+            value="dlc"
+            forceMount
+            className="flex-1 min-h-0 data-[state=inactive]:hidden"
+          >
+            <ScrollArea className="h-full">
+              <div className="pr-4 pb-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {game.expansions.map((expansion) => {
+                    const content = (
+                      <>
+                        <div className="w-full aspect-[3/4] bg-muted overflow-hidden">
+                          {expansion.coverUrl ? (
+                            <img
+                              src={expansion.coverUrl}
+                              alt={expansion.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Layers className="w-8 h-8 text-muted-foreground opacity-40" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2.5 space-y-1">
+                          <p className="text-sm font-medium truncate" title={expansion.name}>
+                            {expansion.name}
+                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            {expansion.releaseDate ? (
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(expansion.releaseDate).getFullYear()}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            <Badge variant="secondary" className="px-1.5 py-0 text-xs capitalize">
+                              {EXPANSION_CATEGORY_LABELS[expansion.category] ?? expansion.category}
+                            </Badge>
+                          </div>
+                        </div>
+                      </>
+                    );
+                    const className =
+                      "shadcn-card overflow-hidden rounded-xl border bg-card border-card-border text-card-foreground shadow-sm block";
+                    return expansion.igdbUrl ? (
+                      <a
+                        key={expansion.id}
+                        href={safeUrl(expansion.igdbUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(className, "hover-elevate cursor-pointer")}
+                        data-testid={`dlc-${expansion.id}`}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <div
+                        key={expansion.id}
+                        className={className}
+                        data-testid={`dlc-${expansion.id}`}
+                      >
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        )}
 
         {/* ── Files tab ── */}
         <TabsContent

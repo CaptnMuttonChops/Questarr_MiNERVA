@@ -162,6 +162,18 @@ export const importConfigSchema = z.object({
   sortExtras: z.boolean(),
 });
 
+// A DLC/expansion IGDB reports as related to a game, carried through from
+// IGDBClient.formatGameData for display; not a separately tracked entity.
+export type GameExpansion = {
+  id: number;
+  name: string;
+  coverUrl: string;
+  releaseDate: string;
+  category: "main" | "update" | "dlc" | "extra" | "packs";
+  gameType?: number | undefined;
+  igdbUrl?: string | undefined;
+};
+
 export const systemConfig = sqliteTable("system_config", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
@@ -192,6 +204,7 @@ export const games = sqliteTable("games", {
   igdbWebsites: text("igdb_websites", { mode: "json" }).$type<
     Array<{ category: number; url: string }>
   >(),
+  expansions: text("expansions", { mode: "json" }).$type<GameExpansion[]>(),
   aggregatedRating: real("aggregated_rating"),
   timeToBeatHastily: real("time_to_beat_hastily"),
   timeToBeatNormally: real("time_to_beat_normally"),

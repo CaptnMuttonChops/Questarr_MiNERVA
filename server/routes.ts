@@ -1826,6 +1826,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  const gameExpansionSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    coverUrl: z.string(),
+    releaseDate: z.string(),
+    category: z.enum(["main", "update", "dlc", "extra", "packs"]),
+    gameType: z.number().optional(),
+    igdbUrl: z.string().optional(),
+  });
+
   // Refresh metadata for all games
   app.post("/api/games/refresh-metadata", igdbRateLimiter, async (req, res) => {
     try {
@@ -1881,6 +1891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     .array(z.object({ url: z.string(), category: z.number() }))
                     .catch([])
                     .parse(updatedData.igdbWebsites),
+                  expansions: gameExpansionSchema.array().catch([]).parse(updatedData.expansions),
                   aggregatedRating: (updatedData.aggregatedRating as number | undefined) ?? null,
                 },
               });

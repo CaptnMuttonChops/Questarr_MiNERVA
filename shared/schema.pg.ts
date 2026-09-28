@@ -12,6 +12,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import type {
+  GameExpansion,
   GameFileCategory,
   ImportTaskItemResult,
   ImportTaskStatus,
@@ -155,6 +156,7 @@ export const games = pgTable("games", {
   screenshots: jsonb("screenshots").$type<string[]>(),
   source: text("source").default("manual"), // "manual" | "steam" | "api"
   igdbWebsites: jsonb("igdb_websites").$type<Array<{ category: number; url: string }>>(),
+  expansions: jsonb("expansions").$type<GameExpansion[]>(),
   aggregatedRating: doublePrecision("aggregated_rating"),
   timeToBeatHastily: doublePrecision("time_to_beat_hastily"),
   timeToBeatNormally: doublePrecision("time_to_beat_normally"),

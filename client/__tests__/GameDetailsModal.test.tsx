@@ -109,6 +109,7 @@ vi.mock("lucide-react", () => ({
   Image: (props: Record<string, unknown>) => <div data-testid="icon-image" {...props} />,
   Link: (props: Record<string, unknown>) => <div data-testid="icon-link" {...props} />,
   File: (props: Record<string, unknown>) => <div data-testid="icon-file" {...props} />,
+  Layers: (props: Record<string, unknown>) => <div data-testid="icon-layers" {...props} />,
   ChevronLeft: (props: Record<string, unknown>) => (
     <div data-testid="icon-chevron-left" {...props} />
   ),
@@ -742,6 +743,47 @@ describe("GameDetailsModal", () => {
       } as unknown as import("@shared/schema").Game);
       fireEvent.click(screen.getByRole("tab", { name: /links/i }));
       expect(screen.queryByRole("link", { name: /protondb/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("DLC tab", () => {
+    it("does not show a DLC tab when the game has no expansions", () => {
+      renderComponent({ ...mockGame, expansions: [] } as unknown as import("@shared/schema").Game);
+      expect(screen.queryByRole("tab", { name: /dlc/i })).not.toBeInTheDocument();
+    });
+
+    it("lists expansions with cover, name, release year and category", () => {
+      renderComponent({
+        ...mockGame,
+        expansions: [
+          {
+            id: 7,
+            name: "Some Expansion",
+            coverUrl: "https://example.com/cover.jpg",
+            releaseDate: "2024-01-01",
+            category: "dlc",
+            gameType: 2,
+            igdbUrl: "https://www.igdb.com/games/some-expansion",
+          },
+          {
+            id: 8,
+            name: "No Link Extra",
+            coverUrl: "",
+            releaseDate: "",
+            category: "extra",
+          },
+        ],
+      } as unknown as import("@shared/schema").Game);
+
+      fireEvent.click(screen.getByRole("tab", { name: /dlc/i }));
+
+      expect(screen.getByText("Some Expansion")).toBeInTheDocument();
+      expect(screen.getByText("2024")).toBeInTheDocument();
+      const link = screen.getByTestId("dlc-7");
+      expect(link).toHaveAttribute("href", "https://www.igdb.com/games/some-expansion");
+
+      expect(screen.getByText("No Link Extra")).toBeInTheDocument();
+      expect(screen.getByTestId("dlc-8").tagName).not.toBe("A");
     });
   });
 

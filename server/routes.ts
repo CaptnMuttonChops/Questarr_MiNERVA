@@ -603,11 +603,10 @@ async function handleAggregatedIndexerSearch(req: Request, res: Response) {
     // search regardless of gameId, so it's resolved and applied up front.
     const gameId = req.query.gameId as string | undefined;
     let filteredItems = items;
-    let blacklistedCount = 0;
     let userSettings: Awaited<ReturnType<typeof storage.getUserSettings>> | undefined;
     if (req.user) {
       userSettings = await storage.getUserSettings(req.user.id);
-      const blacklistTerms = parseJsonStringArray(userSettings?.releaseNameBlacklist ?? null);
+      const blacklistTerms = parseJsonStringArray(userSettings?.releaseNameBlacklist);
       filteredItems = filterByReleaseNameBlacklist(items, blacklistTerms);
     }
 
@@ -617,7 +616,6 @@ async function handleAggregatedIndexerSearch(req: Request, res: Response) {
       if (game && game.userId === req.user.id) {
         const blacklisted = await storage.getReleaseBlacklistSet(gameId);
         filteredItems = filterBlacklistedReleases(filteredItems, blacklisted);
-        blacklistedCount = items.length - filteredItems.length;
 
         // Update the "has results" flag only for canonical game-title searches so that
         // partial/custom user-typed queries in the download dialog don't flip the badge
@@ -636,10 +634,9 @@ async function handleAggregatedIndexerSearch(req: Request, res: Response) {
             .catch((err) => routesLogger.warn({ err }, "Failed to update searchResultsAvailable"));
         }
       }
-    } else {
-      blacklistedCount = items.length - filteredItems.length;
     }
 
+    const blacklistedCount = items.length - filteredItems.length;
     const enrichedItems = await enrichWithAiAnalysis(filteredItems);
 
     return res.json({

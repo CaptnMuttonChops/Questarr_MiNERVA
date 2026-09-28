@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Users, X, Plus, RotateCcw, Save } from "lucide-react";
+import { Users, RotateCcw, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import TagListEditor from "@/components/TagListEditor";
 
 interface PreferredReleaseGroupsSettingsProps {
   preferredGroups: string[];
@@ -28,7 +27,6 @@ export default function PreferredReleaseGroupsSettings({
 
   const [groups, setGroups] = useState<string[]>(preferredGroups);
   const [filterEnabled, setFilterEnabled] = useState(filterByPreferredGroups);
-  const [inputValue, setInputValue] = useState("");
 
   useEffect(() => {
     setGroups(preferredGroups);
@@ -67,32 +65,9 @@ export default function PreferredReleaseGroupsSettings({
     },
   });
 
-  const handleAddGroup = useCallback(() => {
-    const trimmed = inputValue.trim();
-    if (!trimmed) return;
-    if (groups.some((g) => g.toLowerCase() === trimmed.toLowerCase())) {
-      setInputValue("");
-      return;
-    }
-    setGroups((prev) => [...prev, trimmed]);
-    setInputValue("");
-  }, [inputValue, groups]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAddGroup();
-    }
-  };
-
-  const handleRemoveGroup = (group: string) => {
-    setGroups((prev) => prev.filter((g) => g !== group));
-  };
-
   const handleReset = () => {
     setGroups([]);
     setFilterEnabled(false);
-    setInputValue("");
   };
 
   return (
@@ -109,57 +84,17 @@ export default function PreferredReleaseGroupsSettings({
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          {/* Group input */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Release Group Names</Label>
-            <div className="flex gap-2">
-              <Input
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="e.g. CODEX, SKIDROW, EMPRESS..."
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={handleAddGroup}
-                disabled={!inputValue.trim()}
-                aria-label="Add preferred release group"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Press Enter or click + to add a group. Comparison is case-insensitive.
-            </p>
-          </div>
-
-          {/* Group tags */}
-          {groups.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {groups.map((group) => (
-                <Badge key={group} variant="secondary" className="gap-1 pr-1">
-                  {group}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveGroup(group)}
-                    className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5"
-                    aria-label={`Remove ${group}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {groups.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">
-              No preferred groups configured. All groups will be considered equally.
-            </p>
-          )}
+          <TagListEditor
+            tags={groups}
+            onChange={setGroups}
+            inputId="preferred-group-input"
+            label="Release Group Names"
+            placeholder="e.g. CODEX, SKIDROW, EMPRESS..."
+            helperText="Press Enter or click + to add a group. Comparison is case-insensitive."
+            emptyText="No preferred groups configured. All groups will be considered equally."
+            addAriaLabel="Add preferred release group"
+            removeAriaLabel={(group) => `Remove ${group}`}
+          />
 
           {/* Pre-filter toggle */}
           <div className="flex items-center justify-between pt-2 border-t">

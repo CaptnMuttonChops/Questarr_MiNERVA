@@ -212,6 +212,18 @@ describe("Path Traversal Vulnerability in Routes", () => {
           certPath: path.relative(process.cwd(), path.join(insideDir, "linked-dir", "new.pem")),
         });
       expect(dirLink.status).toBe(403);
+
+      const missingUnderLink = await request(app)
+        .patch("/api/settings/ssl")
+        .send({
+          enabled: false,
+          port: 9898,
+          certPath: path.relative(
+            process.cwd(),
+            path.join(insideDir, "linked-dir", "not-yet", "new.pem")
+          ),
+        });
+      expect(missingUnderLink.status).toBe(403);
       expect(mockValidateCertFiles).not.toHaveBeenCalled();
     } finally {
       fs.rmSync(insideDir, { recursive: true, force: true });

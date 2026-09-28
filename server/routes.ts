@@ -126,32 +126,38 @@ import { readLastLogLines } from "./log-file.js";
 // Root directory for the file system browser; restrict browsing to this tree
 const FILE_BROWSER_ROOT = fs.realpathSync(process.cwd());
 
+function isInsideFileBrowserRoot(candidate: string): boolean {
+  const relative = path.relative(FILE_BROWSER_ROOT, candidate);
+  return relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
+}
+
 // Resolves a user-supplied path against FILE_BROWSER_ROOT, following symlinks, and
-// returns the canonical path only if it stays inside the root (null otherwise). A file
-// that doesn't exist yet is canonicalized through its parent directory, so a symlinked
-// directory can't be used to point a not-yet-created file outside the root either.
+// returns the canonical path only if it stays inside the root (null otherwise). For a
+// path that doesn't fully exist yet, the nearest existing ancestor is canonicalized and
+// the missing components re-appended, so a symlinked directory anywhere along the way
+// can't point a not-yet-created file outside the root.
 async function resolveCanonicalWithinFileBrowserRoot(input: string): Promise<string | null> {
   const resolved = path.resolve(FILE_BROWSER_ROOT, input);
-  let canonical: string;
-  try {
-    canonical = await fs.promises.realpath(resolved);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    try {
-      canonical = path.join(
-        await fs.promises.realpath(path.dirname(resolved)),
-        path.basename(resolved)
-      );
-    } catch (parentError) {
-      if ((parentError as NodeJS.ErrnoException).code !== "ENOENT") throw parentError;
-      canonical = resolved;
+  // Lexical check first, inline and gating every realpath() below, so CodeQL's
+  // path-injection analysis sees the filesystem calls as guarded.
+  const lexical = path.relative(FILE_BROWSER_ROOT, resolved);
+  if (lexical !== ".." && !lexical.startsWith(".." + path.sep) && !path.isAbsolute(lexical)) {
+    const missing: string[] = [];
+    let existing = resolved;
+    for (;;) {
+      try {
+        const canonical = path.join(await fs.promises.realpath(existing), ...missing);
+        return isInsideFileBrowserRoot(canonical) ? canonical : null;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const parent = path.dirname(existing);
+        if (parent === existing) return null;
+        missing.unshift(path.basename(existing));
+        existing = parent;
+      }
     }
   }
-  const relative = path.relative(FILE_BROWSER_ROOT, canonical);
-  if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
-    return null;
-  }
-  return canonical;
+  return null;
 }
 
 type IgdbConfigSource = "env" | "database" | undefined;

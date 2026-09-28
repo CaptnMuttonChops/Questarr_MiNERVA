@@ -231,7 +231,31 @@ CREATED_CTID="${CTID}"
 ok "Container ${CTID} created"
 
 msg "Starting container ${CTID}"
-pct start "${CTID}" >/dev/null
+START_LOG="$(mktemp)"
+if ! pct start "${CTID}" >"${START_LOG}" 2>&1; then
+  # Some community/unofficial ARM64 Proxmox builds (e.g. Proxmox-Arm64,
+  # Pimox) ship an AppArmor stack that fails to generate the extra profile
+  # `nesting=1` requires, and the container never spawns
+  # ("sync_wait: ... An error occurred in another process"). Questarr
+  # itself doesn't need nesting (it isn't running Docker-in-LXC), so retry
+  # once with it turned off before giving up.
+  warn "Container ${CTID} failed to start:"
+  sed 's/^/    /' "${START_LOG}" >&2
+  if [[ "${PCT_ARGS[*]}" == *"nesting=1"* ]]; then
+    warn "Retrying without the 'nesting' feature (known to clash with AppArmor on some ARM64/community Proxmox builds)."
+    pct set "${CTID}" --features nesting=0 >/dev/null
+    if pct start "${CTID}" >"${START_LOG}" 2>&1; then
+      ok "Container ${CTID} started with nesting disabled"
+      warn "Nesting was disabled to work around an AppArmor start failure; Questarr does not require it. See https://github.com/Doezer/Questarr/issues/1106 for details."
+    else
+      sed 's/^/    /' "${START_LOG}" >&2
+      die "Container ${CTID} still failed to start after disabling nesting. This looks like a Proxmox/AppArmor issue on this host, not a Questarr problem — see https://github.com/Doezer/Questarr/issues/1106."
+    fi
+  else
+    die "Container ${CTID} failed to start."
+  fi
+fi
+rm -f "${START_LOG}"
 
 # Wait for the container's network to come up before the installer needs it.
 msg "Waiting for network"

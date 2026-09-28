@@ -20,10 +20,9 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 
 ### Added
 
-- **Optional PostgreSQL backend**: Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md`.
-- **AI release analysis (TypeSafe/Jev)**: auto-download now runs an AI legitimacy check and holds a suspicious match for manual review (notified over Apprise) instead of downloading it. Fails open if the check itself errors (#1070, #1077, #1078).
+#### Library & Discovery
+
 - **Root folder / Scan Disk**: discover games already present on disk, plus safe recursive file discovery within a game's own folder to reconcile files already there (#943, #892, #938).
-- **Playnite integration**: API keys, an integration API, and a Playnite extension (#986).
 - **Platforms setting**: one Settings > Platforms list to always only see your platform of choice by default across Library, Discover, Add Game, and download search (#1018, #1104).
 - **Per-game target platforms** for automatic downloads (#1048).
 - **Platform and release year filters** on game search (#897).
@@ -32,82 +31,125 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **Crack status** section on the game detail page (#1012, #1062).
 - **Time to Beat** via IGDB's official endpoint (#1063).
 - **Sort menu** on the Library page, plus an indexer-priority sort option for downloads (#980, #963).
+- **DLC & expansions**: games now persist their IGDB expansions and show them in a new DLC tab on the game detail page, with cover art, release year, and a category badge (#1105).
+- **xREL**: surfaces a release's nuke reason with a "Nuked" badge (#948).
+- **Screenshot lightbox**: carousel navigation with arrow-key and swipe support, plus an image counter (#804).
+- **Wishlist**: configurable grid column count (#871).
+- **Content filtering**: optional filters to hide erotic and age-restricted (ESRB AO / PEGI 18) games from the library, search, and discovery pages (#808).
+- **Windows 2000 style mode**: an optional retro cosmetic theme, alongside the existing Ghost Mode (#807).
+- **Sidebar**: moved the xREL and RSS pages under Discover (#1086). Wishlist moved from a top-level link into a new collapsible Library group alongside Playing; on mobile, Playing replaced Wishlist in the pinned bottom-nav slots (Wishlist stays reachable via "More") (#1080).
+
+#### Downloads & Import
+
+- **AI release analysis (TypeSafe/Jev)**: auto-download now runs an AI legitimacy check and holds a suspicious match for manual review (notified over Apprise) instead of downloading it. Fails open if the check itself errors (#1070, #1077, #1078).
 - **Packs/Addons** download category (#876).
 - **Password-protected archives** are now routed to manual review with a password prompt, instead of failing (#1033).
 - **SABnzbd**: archive password support for G4U-style releases (#962).
-- **Debug logging**: opt-in logging of full downloader responses (#927).
-- **`/api/status`**: new dashboard endpoint (#984).
 - **Pre-import security scanning**: optional VirusTotal (hash lookup) and ClamAV (local deep scan) checks before a download is unpacked or moved into the library; a detection quarantines the download and raises a Security Alert notification instead of importing it (#1102).
-- **Deployment**: Windows installer build (#933); a Helm chart, a Proxmox VE LXC script, and CasaOS/Umbrel/Cosmos Cloud app-store definitions (#983, #985, #982).
-- **Telemetry**: opt-in automatic reporting of unhandled server errors (#924).
-- **Sidebar**: moved the xREL and RSS pages under Discover (#1086). Wishlist moved from a top-level link into a new collapsible Library group alongside Playing; on mobile, Playing replaced Wishlist in the pinned bottom-nav slots (Wishlist stays reachable via "More") (#1080).
-- **DLC & expansions**: games now persist their IGDB expansions and show them in a new DLC tab on the game detail page, with cover art, release year, and a category badge (#1105).
-- **Reverse proxy subdirectory deployments**: `QUESTARR_BASE_PATH` is now a runtime server config (no rebuild needed) for serving Questarr behind a path prefix; see `docs/REVERSE_PROXY.md` (#844).
-- **Steam wishlist**: optional auto-sync on a configurable interval, alongside the existing manual sync (#805).
-- **Content filtering**: optional filters to hide erotic and age-restricted (ESRB AO / PEGI 18) games from the library, search, and discovery pages (#808).
-- **Windows 2000 style mode**: an optional retro cosmetic theme, alongside the existing Ghost Mode (#807).
-- **Screenshot lightbox**: carousel navigation with arrow-key and swipe support, plus an image counter (#804).
-- **Wishlist**: configurable grid column count (#871).
-- **Download search**: results now link back to their indexer/source page (#872).
-- **Password reset**: `npm run reset-password` CLI script for a forgotten admin password (#860).
 - **Pending imports**: orphaned downloads (missing game record) get a dedicated "Link Game" action to reattach them instead of stalling silently (#932).
-- **xREL**: surfaces a release's nuke reason with a "Nuked" badge (#948).
-- Evolved the hidden mini-game into a full isometric infiltration game with multi-room levels and a stealth mechanic (#964, #967, #975, #1003).
+- **Download search**: results now link back to their indexer/source page (#872).
+
+#### Integrations
+
+- **Optional PostgreSQL backend**: Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md`.
+- **Playnite integration**: API keys, an integration API, and a Playnite extension — see [the extension's README](../extensions/playnite-questarr/README.md) for setup (#986).
+- **Steam wishlist**: optional auto-sync on a configurable interval, alongside the existing manual sync (#805).
+
+#### Deployment & Admin
+
+- **Deployment**: Windows installer build (#933); a Helm chart, a Proxmox VE LXC script, and CasaOS/Umbrel/Cosmos Cloud app-store definitions (#983, #985, #982).
+- **Reverse proxy subdirectory deployments**: `QUESTARR_BASE_PATH` is now a runtime server config (no rebuild needed) for serving Questarr behind a path prefix; see `docs/REVERSE_PROXY.md` (#844).
+- **`/api/status`**: new dashboard endpoint (#984).
+- **Debug logging**: optional logging of full downloader responses (#927).
+- **Telemetry**: optional automatic reporting of unhandled server errors (#924).
+- **Password reset**: `npm run reset-password` CLI script for a forgotten admin password (#860).
 
 ### Fixed
 
-- **qBittorrent**: v5+ downloads not tracked when the API returns an async `pending_count`; v5.2+ torrent-upload success not recognized; a fallback for v2.0.2 (#1015, #926, #869).
-- **SABnzbd**: fixed the manual Confirm Import path resolution and a history lookup that missed archived/failed downloads (#940, #1044).
+#### Import & Archives
+
 - **Hardlink import**: falls back to copy when hardlinks are unsupported, including for multi-file downloads (#873, #978).
+- **Import**: `modeUsed` was only reporting the last per-file fallback (#931).
+- **Import**: a download that disappeared from the client (e.g. pruned after a seed-ratio limit) was silently marked owned without importing anything; now routed to manual review (#837). A failed import used to dead-end with no retry path; failures now go to Pending Manual Imports so they can be adjusted and retried (#840).
+- **Import**: a single-file torrent saved outside a subfolder produced a 500 instead of importing (#856).
+- **SABnzbd**: fixed the manual Confirm Import path resolution and a history lookup that missed archived/failed downloads (#940, #1044); manual Confirm Import could also build a duplicated source path (`.../release/release`) (#937).
+- **NZBGet**: the configured category was never applied to new downloads (#851); completed downloads with a non-`SUCCESS/ALL` history status were reported as aborted (#855); `downloadDir` was never populated on completion, so successful downloads never reached import (#932).
+- **Usenet**: download ids (e.g. SABnzbd's `nzo_id`) were incorrectly lowercased on claim/scan routes, breaking case-sensitive status lookups (#1055).
 - **Nintendo Switch**: fixed silent import failures for NSP/XCI releases (#1021).
+- **Archive extraction**: RAR archives silently produced empty output instead of failing loudly; routed through a working extractor, ending on Alpine-native 7-Zip plus RARLAB's official `unrar` binary for reliable RAR/multi-volume support (#803). Archives now unpack at the destination instead of the downloader directory, with hardened multi-volume (`.partN.rar`, `.7z.NNN`) sibling detection (#1049). A large/slow extraction could also be re-triggered mid-unpack by the next status check, clobbering itself (#1014).
+
+#### Downloaders & Indexers
+
+- **qBittorrent**: v5+ downloads not tracked when the API returns an async `pending_count`; v5.2+ torrent-upload success not recognized; a fallback for v2.0.2 (#1015, #926, #869).
 - **Prowlarr**: download links no longer double-wrapped when the proxy URL comes back on a container IP (#1007).
 - **Indexers**: search categories outside 40xx/10xx were being dropped; hardened Newznab/Torznab caps discovery (#1058, #951).
 - **Downloaders**: credential policy now validates the resolved URL, not just `useSsl` (#1061).
 - **IGDB**: validated the rate-limit setting's range; canonicalized/deduped game editions in search results (#1020, #950).
-- **Clipboard**: copy buttons now work on non-secure (HTTP) contexts (#961).
-- **Import**: `modeUsed` was only reporting the last per-file fallback (#931).
-- **Documentation**: `docs/SECRETS.md` §8 wrongly said the `pg-to-sqlite` credential-logging issue was still open; it was fixed in v1.4.0. Now states the affected range (v1.1.0–v1.3.1) and that operators who kept logs from that range should rotate their Postgres password.
-- **Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s own example commands (#1084).
-- **Calendar**: follow-up fixes to the year view's date filtering.
-- **Archive extraction**: RAR archives silently produced empty output instead of failing loudly; routed through a working extractor, ending on Alpine-native 7-Zip plus RARLAB's official `unrar` binary for reliable RAR/multi-volume support (#803). Archives now unpack at the destination instead of the downloader directory, with hardened multi-volume (`.partN.rar`, `.7z.NNN`) sibling detection (#1049). A large/slow extraction could also be re-triggered mid-unpack by the next status check, clobbering itself (#1014).
-- **safeFetch**: fixed the `Host` header being silently replaced by the resolved IP on plain-HTTP requests, which broke Prowlarr's proxy-link matching (#822).
-- **Import**: a download that disappeared from the client (e.g. pruned after a seed-ratio limit) was silently marked owned without importing anything; now routed to manual review (#837). A failed import used to dead-end with no retry path; failures now go to Pending Manual Imports so they can be adjusted and retried (#840).
-- **NZBGet**: the configured category was never applied to new downloads (#851); completed downloads with a non-`SUCCESS/ALL` history status were reported as aborted (#855); `downloadDir` was never populated on completion, so successful downloads never reached import (#932).
-- **SABnzbd**: manual Confirm Import could build a duplicated source path (`.../release/release`) (#937).
-- **Import**: a single-file torrent saved outside a subfolder produced a 500 instead of importing (#856).
-- **Usenet**: download ids (e.g. SABnzbd's `nzo_id`) were incorrectly lowercased on claim/scan routes, breaking case-sensitive status lookups (#1055).
 - **Unraid**: fixed the Community Applications template category and default `PUID`/`PGID`, and added an optional Library Path and `UMASK` setting (#850, #886).
+- **safeFetch**: fixed the `Host` header being silently replaced by the resolved IP on plain-HTTP requests, which broke Prowlarr's proxy-link matching (#822).
+
+#### Documentation
+
+- **`docs/SECRETS.md`** §8 wrongly said the `pg-to-sqlite` credential-logging issue was still open; it was fixed in v1.4.0. Now states the affected range (v1.1.0–v1.3.1) and that operators who kept logs from that range should rotate their Postgres password.
+- **Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s own example commands (#1084).
+
+#### UI & Misc
+
+- **Clipboard**: copy buttons now work on non-secure (HTTP) contexts (#961).
+- **Calendar**: follow-up fixes to the year view's date filtering.
 - **Release notifications**: no longer sent for games added with a release date already in the past (#874).
 - **Scroll areas**: scrollbars stayed hidden except while actively scrolling (#875).
 
 ### Changed
 
+#### Auth & Settings
+
 - **Auth**: migrated to httpOnly cookies plus CSRF, with a bearer-token fallback (#954).
 - **IGDB credential validation** and a test-connection UI (#1064).
 - **Settings**: reorganized page tabs by domain; moved the Discord webhook config to the Stats page (#949, #946).
 - **Appearance**: unified theme selection into a single dropdown (#1042).
+
+#### Performance
+
 - **Calendar**: greyed out past days and games in the year view; optimized its date filtering for performance (#1051, #1076).
 - **Downloads page**: optimized filtering with `useMemo` (#1041).
-- **Mobile**: personal notes collapse behind an Edit button; the Settings tab strip gets scroll-fade hints (#993, #969).
-- **Logs page**: history limit raised from 200 to 1000 lines (#928).
 - Made the pending-imports alert collapsible across multiple reviews (#1038).
+
+#### Mobile
+
+- **Mobile**: personal notes collapse behind an Edit button; the Settings tab strip gets scroll-fade hints (#993, #969).
+
+#### Other
+
+- **Logs page**: history limit raised from 200 to 1000 lines (#928).
 - Dependency updates: `undici` 7.29.0 → 8.9.0 (direct dependency, used by the SSRF-safe fetch wrapper in `server/ssrf.ts`). No vulnerability fix — see `docs/CVE_FIXES_BY_RELEASE.md` for verification. Major version bump; undici 8.9.0 requires Node `>=22.19.0`, so Questarr's own `engines.node` floor is raised from `>=20` to `>=22.19.0` to match — this only formalizes existing practice, since CI (`node-version: 26.x`) and the production Docker image (`node:26-alpine`) were already on Node 26. Full test suite and `server/__tests__/ssrf.test.ts` verified green against the new version.
 
 ### Security
 
-- **Scan Disk endpoint**: limited recursive traversal with a max file count and time budget, and added rate limiting, reducing DoS exposure on large directory trees (#1069).
+#### Access Control
+
 - **API auth**: added a default-deny boundary and fixed an unauthenticated `GET /api/config` (#953).
+- **Auth**: failed login attempts are now logged for brute-force/credential-stuffing detection (#858); fixed an IDOR letting any user modify or delete another user's games, and strengthened the password policy to 8+ characters with a letter and a digit (#859).
+- **Input validation**: hardened indexer search, qBittorrent, NexusMods, and game-status endpoints against unbounded/malformed input (#857).
+
+#### Network & Downloads
+
+- **Downloader SSRF**: closed a gap in outbound requests (#890).
 - **Downloaders**: self-signed-certificate TLS bypass is now opt-in, not default (#947).
-- **Logging**: production no longer hardcodes the debug log level, and secrets are now redacted from logs; API keys/tokens are also redacted before logs are sent to support (#952, #960).
 - **Archive import**: source reads are now restricted to configured downloader roots (#1052).
 - **Indexers**: sanitized the comments URL before linking release titles (XSS) (#895); enforced the HTTP indexer API-key policy with a per-indexer insecure-LAN opt-in (#1022).
-- **Downloader SSRF**: closed a gap in outbound requests (#890).
-- **Input validation**: hardened indexer search, qBittorrent, NexusMods, and game-status endpoints against unbounded/malformed input (#857).
-- **Auth**: failed login attempts are now logged for brute-force/credential-stuffing detection (#858); fixed an IDOR letting any user modify or delete another user's games, and strengthened the password policy to 8+ characters with a letter and a digit (#859).
+
+#### Scanning & Logging
+
+- **Scan Disk endpoint**: limited recursive traversal with a max file count and time budget, and added rate limiting, reducing DoS exposure on large directory trees (#1069).
+- **Logging**: production no longer hardcodes the debug log level, and secrets are now redacted from logs; API keys/tokens are also redacted before logs are sent to support (#952, #960).
 - **Search engines**: `/robots.txt` no longer bypasses security headers, and instances are kept out of search-engine indexes (#941, #939).
-- **Dependency Vulnerabilities**: Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
-- **Dependency Vulnerabilities**: Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).
-- **Dependency Vulnerabilities**: Fixed a critical IP-spoofing vulnerability in `proxy-addr`, flagged by Aikido Intel.
+
+#### Dependency Vulnerabilities
+
+- Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
+- Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).
+- Fixed a critical IP-spoofing vulnerability in `proxy-addr`, flagged by Aikido Intel.
 
 ### Vulnerabilities Addressed
 

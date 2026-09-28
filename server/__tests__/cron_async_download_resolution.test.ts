@@ -38,6 +38,7 @@ vi.mock("../xrel.js", () => ({
 }));
 vi.mock("../search.js", () => ({
   filterBlacklistedReleases: vi.fn(),
+  filterByReleaseNameBlacklist: vi.fn((items: unknown[]) => items),
   searchAllIndexers: vi.fn(),
 }));
 vi.mock("../igdb.js", () => ({

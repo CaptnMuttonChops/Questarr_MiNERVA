@@ -8,7 +8,12 @@ import { DownloaderManager } from "./downloaders.js";
 import { resolveDownloadRelativePath, buildRemoteImportPath } from "./downloaders/utils.js";
 import { torznabClient } from "./torznab.js";
 import { newznabClient } from "./newznab.js";
-import { searchAllIndexers, filterBlacklistedReleases, type SearchItem } from "./search.js";
+import {
+  searchAllIndexers,
+  filterBlacklistedReleases,
+  filterByReleaseNameBlacklist,
+  type SearchItem,
+} from "./search.js";
 import { typesafeClient, type ReleaseType } from "./typesafe.js";
 import { xrelClient, DEFAULT_XREL_BASE } from "./xrel.js";
 import { steamService } from "./steam.js";
@@ -263,7 +268,8 @@ function applyPreferredPlatformFilter(
 async function searchAndCategorizeItemsForGame(
   game: Pick<Game, "id" | "title">,
   downloadRules: string | null,
-  indexerPriorityMap?: Map<string, number>
+  indexerPriorityMap?: Map<string, number>,
+  blacklistTerms: string[] = []
 ): Promise<AutoSearchCategorizedItems | null> {
   const { items, errors } = await searchAllIndexers({
     query: game.title,
@@ -307,9 +313,13 @@ async function searchAndCategorizeItemsForGame(
     return null;
   }
 
-  // Filter out blacklisted releases
+  // Filter out releases matching the user's global release-name blacklist before anything
+  // else touches them (including the AI auto-download check further down the pipeline).
+  const globallyFiltered = filterByReleaseNameBlacklist(matchedItems, blacklistTerms);
+
+  // Filter out per-game blacklisted releases
   const blacklisted = await storage.getReleaseBlacklistSet(game.id);
-  const nonBlacklisted = filterBlacklistedReleases(matchedItems, blacklisted);
+  const nonBlacklisted = filterBlacklistedReleases(globallyFiltered, blacklisted);
 
   if (nonBlacklisted.length === 0) {
     igdbLogger.debug(
@@ -1217,6 +1227,7 @@ export async function checkAutoSearch() {
 
         const preferredGroups = parseJsonStringArray(settings.preferredReleaseGroups);
         const preferredPlatform = settings.preferredPlatform ?? null;
+        const blacklistTerms = parseJsonStringArray(settings.releaseNameBlacklist);
 
         for (const game of wantedGames) {
           try {
@@ -1232,7 +1243,8 @@ export async function checkAutoSearch() {
             const searchResult = await searchAndCategorizeItemsForGame(
               game,
               settings.downloadRules,
-              indexerPriorityMap
+              indexerPriorityMap,
+              blacklistTerms
             );
             if (!searchResult) {
               // No results at all (zero results or all blacklisted) — clear the badge
@@ -1432,7 +1444,8 @@ export async function checkAutoSearch() {
             const searchResult = await searchAndCategorizeItemsForGame(
               game,
               settings.downloadRules,
-              indexerPriorityMap
+              indexerPriorityMap,
+              blacklistTerms
             );
             if (!searchResult) {
               await storage.updateGameSearchResultsAvailable(game.id, false);

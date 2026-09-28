@@ -76,6 +76,7 @@ vi.mock("../igdb.js", () => ({
 vi.mock("../search.js", () => ({
   searchAllIndexers: vi.fn(),
   filterBlacklistedReleases: vi.fn(),
+  filterByReleaseNameBlacklist: vi.fn((items: unknown[]) => items),
 }));
 
 vi.mock("../xrel.js", () => ({

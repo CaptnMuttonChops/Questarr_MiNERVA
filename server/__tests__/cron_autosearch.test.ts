@@ -82,6 +82,13 @@ vi.mock("../search.js", () => ({
   searchAllIndexers: mockSearchAllIndexers,
   filterBlacklistedReleases: (items: { title: string }[], blacklisted: Set<string>) =>
     blacklisted.size > 0 ? items.filter((item) => !blacklisted.has(item.title)) : items,
+  filterByReleaseNameBlacklist: (items: { title: string }[], terms: string[]) => {
+    const lowerTerms = terms.map((t) => t.toLowerCase()).filter((t) => t.length > 0);
+    if (lowerTerms.length === 0) return items;
+    return items.filter(
+      (item) => !lowerTerms.some((term) => item.title.toLowerCase().includes(term))
+    );
+  },
 }));
 
 // Mock socket
@@ -938,6 +945,69 @@ describe("Cron - checkAutoSearch", () => {
     expect(mockAddNotification).not.toHaveBeenCalled();
     // CR-3: when all items are blacklisted, the "has results" flag must be cleared
     expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+  });
+
+  it("should not notify when the only matched item contains a globally blacklisted term", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    mockSearchAllIndexers.mockResolvedValue({
+      items: [
+        {
+          title: "Test Game-HYPERVISOR",
+          link: "https://example.com/download",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 50,
+          size: 10_000,
+        },
+      ],
+      errors: [],
+      total: 1,
+    });
+
+    await checkAutoSearch();
+
+    expect(mockAddNotification).not.toHaveBeenCalled();
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+  });
+
+  it("should notify for non-blacklisted items alongside a globally blacklisted release", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["hypervisor"]',
+    });
+    mockSearchAllIndexers.mockResolvedValue({
+      items: [
+        {
+          title: "Test Game-HYPERVISOR",
+          link: "https://example.com/download",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 50,
+          size: 10_000,
+        },
+        {
+          title: "Test Game-CODEX",
+          link: "https://example.com/download2",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 40,
+          size: 10_000,
+        },
+      ],
+      errors: [],
+      total: 2,
+    });
+
+    await checkAutoSearch();
+
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, true);
+    expect(mockAddNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId, title: "Game Available" })
+    );
   });
 
   it("should clear search results badge when indexer returns zero items", async () => {

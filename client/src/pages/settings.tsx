@@ -48,6 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiKeysCard } from "@/components/ApiKeysCard";
 import AutoDownloadRulesSettings from "@/components/AutoDownloadRulesSettings";
 import PreferredReleaseGroupsSettings from "@/components/PreferredReleaseGroupsSettings";
+import ReleaseNameBlacklistSettings from "@/components/ReleaseNameBlacklistSettings";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { GHOST_UNLOCK_KEY } from "@/lib/ghost-mode";
 import {
@@ -387,6 +388,7 @@ export default function SettingsPage() {
   const [downloadRules, setDownloadRules] = useState<DownloadRules | null>(null);
   const [preferredReleaseGroups, setPreferredReleaseGroups] = useState<string[]>([]);
   const [filterByPreferredGroups, setFilterByPreferredGroups] = useState(false);
+  const [releaseNameBlacklist, setReleaseNameBlacklist] = useState<string[]>([]);
   const [preferredPlatform, setPreferredPlatform] = useState<string>("");
   const [xrelSceneReleases, setXrelSceneReleases] = useState(true);
   const [xrelP2pReleases, setXrelP2pReleases] = useState(false);
@@ -446,6 +448,7 @@ export default function SettingsPage() {
       }
       setPreferredReleaseGroups(parseJsonStringArray(userSettings.preferredReleaseGroups));
       setFilterByPreferredGroups(userSettings.filterByPreferredGroups ?? false);
+      setReleaseNameBlacklist(parseJsonStringArray(userSettings.releaseNameBlacklist));
       setPreferredPlatform(userSettings.preferredPlatform ?? "");
       setXrelSceneReleases(userSettings.xrelSceneReleases ?? true);
       setXrelP2pReleases(userSettings.xrelP2pReleases ?? false);
@@ -1501,6 +1504,10 @@ export default function SettingsPage() {
               filterByPreferredGroups={filterByPreferredGroups}
               onGroupsChange={setPreferredReleaseGroups}
               onFilterChange={setFilterByPreferredGroups}
+            />
+            <ReleaseNameBlacklistSettings
+              blacklistTerms={releaseNameBlacklist}
+              onTermsChange={setReleaseNameBlacklist}
             />
 
             {/* Blacklisted Releases */}

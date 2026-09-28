@@ -52,6 +52,12 @@ export const userSettings = sqliteTable("user_settings", {
   filterByPreferredGroups: integer("filter_by_preferred_groups", { mode: "boolean" })
     .notNull()
     .default(false),
+  // Global, case-insensitive substring blacklist for release names (e.g. "HYPERVISOR"),
+  // stored as a JSON string array. Unlike releaseBlacklist (per-game, exact title match,
+  // added from a specific search result), this applies across every game and every search
+  // flow -- manual search, auto-search, and AI (Jev) enrichment/auto-download analysis --
+  // so a matching release never reaches the user or the AI in the first place.
+  releaseNameBlacklist: text("release_name_blacklist"),
   preferredPlatform: text("preferred_platform"),
   hideAdultContent: integer("hide_adult_content", { mode: "boolean" }).notNull().default(true),
   hideAgeRestrictedContent: integer("hide_age_restricted_content", { mode: "boolean" })

@@ -1407,6 +1407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Resolve against the root and normalize
+        // nosemgrep: javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal -- result is checked against FILE_BROWSER_ROOT below, both lexically and again after realpath(), before any filesystem read
         const resolvedPath = path.resolve(FILE_BROWSER_ROOT, queryPath);
 
         const normalizedRoot = FILE_BROWSER_ROOT.endsWith(path.sep)

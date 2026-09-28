@@ -40,7 +40,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **Pre-import security scanning**: optional VirusTotal (hash lookup) and ClamAV (local deep scan) checks before a download is unpacked or moved into the library; a detection quarantines the download and raises a Security Alert notification instead of importing it (#1102).
 - **Deployment**: Windows installer build (#933); a Helm chart, a Proxmox VE LXC script, and CasaOS/Umbrel/Cosmos Cloud app-store definitions (#983, #985, #982).
 - **Telemetry**: opt-in automatic reporting of unhandled server errors (#924).
-- **Sidebar**: moved the xREL and RSS pages under Discover (#1086).
+- **Sidebar**: moved the xREL and RSS pages under Discover (#1086). Wishlist moved from a top-level link into a new collapsible Library group alongside Playing; on mobile, Playing replaced Wishlist in the pinned bottom-nav slots (Wishlist stays reachable via "More") (#1080).
 - **DLC & expansions**: games now persist their IGDB expansions and show them in a new DLC tab on the game detail page, with cover art, release year, and a category badge (#1105).
 - **Reverse proxy subdirectory deployments**: `QUESTARR_BASE_PATH` is now a runtime server config (no rebuild needed) for serving Questarr behind a path prefix; see `docs/REVERSE_PROXY.md` (#844).
 - **Steam wishlist**: optional auto-sync on a configurable interval, alongside the existing manual sync (#805).

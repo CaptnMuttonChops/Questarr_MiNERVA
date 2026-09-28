@@ -170,11 +170,11 @@ function GameTabTrigger({
   icon,
   count,
 }: {
-  value: string;
-  label: string;
-  ariaLabel?: string;
-  icon: React.ReactNode;
-  count?: number | undefined;
+  readonly value: string;
+  readonly label: string;
+  readonly ariaLabel?: string;
+  readonly icon: React.ReactNode;
+  readonly count?: number | undefined;
 }) {
   return (
     <Tooltip>

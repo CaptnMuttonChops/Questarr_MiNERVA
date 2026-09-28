@@ -119,10 +119,6 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **qs** (npm `overrides` pin) 6.15.2 → 6.16.0 — fixes GHSA-4mjr-xmp4-gh2g (MODERATE) — DoS via attacker-controlled `isBuffer`, vulnerable range `>=2.2.5 <6.16.0` — and GHSA-x5fp-wj9c-mxmx (MODERATE) — array-limit bypass via bracket-key comma parsing, vulnerable range `>=6.14.2 <=6.15.3`. Reaches production via `express`/`body-parser`, both of which pin `qs: ~6.15.1` (a range that otherwise excludes the fix); the same override also closes the gap in `openid`, `steam-web`, and `superagent` (#997).
 - **js-yaml** (npm `overrides` pin, dev-only, scoped to `@eslint/eslintrc`) 4.3.0 → 4.3.2 — fixes GHSA-5p4m-2wfm-xmqj (HIGH) — quadratic CPU consumption in `!!omap` resolution. Scoped rather than global so the already-unaffected top-level `js-yaml@5.3.0` is left untouched (#997).
 
-## [1.4.2] - 2026-08-11
-
-Hotfix release, tagged directly off `v1.4.1` rather than from `main` — not part of this branch's history. Fixed the same `ip-address` and `socket.io-parser` advisories independently patched above for `main`'s own accumulated changes (see the `[1.5.0]` entry). Full details in the `v1.4.2` tag and its own copy of this file.
-
 ## [1.4.1] - 2026-08-02
 
 Hotfix release addressing dependency vulnerabilities flagged by `npm audit`.

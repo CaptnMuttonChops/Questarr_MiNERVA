@@ -239,7 +239,9 @@ export function filterBlacklistedReleases(
  */
 export function filterByReleaseNameBlacklist(items: SearchItem[], terms: string[]): SearchItem[] {
   if (terms.length === 0) return items;
-  const lowerTerms = terms.map((term) => term.toLowerCase()).filter((term) => term.length > 0);
+  const lowerTerms = terms
+    .map((term) => term.trim().toLowerCase())
+    .filter((term) => term.length > 0);
   if (lowerTerms.length === 0) return items;
   return items.filter((item) => {
     const lowerTitle = item.title.toLowerCase();

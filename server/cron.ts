@@ -265,57 +265,75 @@ function applyPreferredPlatformFilter(
   });
 }
 
+const AUTO_SEARCH_PAGE_SIZE = 10;
+// How many result pages auto-search walks when the global release-name blacklist hides a
+// whole page, before concluding that no eligible release exists.
+const AUTO_SEARCH_MAX_PAGES = 5;
+
+function logAutoSearchErrors(gameTitle: string, errors: string[]): void {
+  if (errors.length === 0) return;
+  const networkKeywords = [
+    "fetch failed",
+    "Unsafe URL detected",
+    "ENOTFOUND",
+    "EAI_AGAIN",
+    "ETIMEDOUT",
+    "network timeout",
+  ];
+
+  const areAllErrorsNetworkRelated = errors.every((err) =>
+    networkKeywords.some((keyword) => err.includes(keyword))
+  );
+
+  if (areAllErrorsNetworkRelated) {
+    igdbLogger.warn(
+      { gameTitle, errorCount: errors.length },
+      "Search failed due to network connectivity issues (DNS/Fetch/Safety check). Please check your internet connection."
+    );
+  } else {
+    igdbLogger.warn({ gameTitle, errors }, "Errors during search");
+  }
+}
+
 async function searchAndCategorizeItemsForGame(
   game: Pick<Game, "id" | "title">,
   downloadRules: string | null,
   indexerPriorityMap?: Map<string, number>,
   blacklistTerms: string[] = []
 ): Promise<AutoSearchCategorizedItems | null> {
-  const { items, errors } = await searchAllIndexers({
-    query: game.title,
-    limit: 10,
-  });
+  let matchedItems: SearchItem[] = [];
+  let globallyFiltered: SearchItem[] = [];
 
-  if (errors.length > 0) {
-    const networkKeywords = [
-      "fetch failed",
-      "Unsafe URL detected",
-      "ENOTFOUND",
-      "EAI_AGAIN",
-      "ETIMEDOUT",
-      "network timeout",
-    ];
+  for (let page = 0; page < AUTO_SEARCH_MAX_PAGES; page++) {
+    const { items, errors } = await searchAllIndexers({
+      query: game.title,
+      limit: AUTO_SEARCH_PAGE_SIZE,
+      offset: page * AUTO_SEARCH_PAGE_SIZE,
+    });
 
-    const areAllErrorsNetworkRelated = errors.every((err) =>
-      networkKeywords.some((keyword) => err.includes(keyword))
-    );
+    logAutoSearchErrors(game.title, errors);
 
-    if (areAllErrorsNetworkRelated) {
-      igdbLogger.warn(
-        { gameTitle: game.title, errorCount: errors.length },
-        "Search failed due to network connectivity issues (DNS/Fetch/Safety check). Please check your internet connection."
-      );
-    } else {
-      igdbLogger.warn({ gameTitle: game.title, errors }, "Errors during search");
+    if (items.length === 0) {
+      if (page === 0) return null;
+      break;
     }
-  }
 
-  if (items.length === 0) {
-    return null;
-  }
+    matchedItems = items.filter((item) => releaseMatchesGame(item.title, game.title));
+    if (matchedItems.length === 0) {
+      igdbLogger.debug(
+        { gameTitle: game.title, originalCount: items.length },
+        "No items passed strict title matching"
+      );
+      return null;
+    }
 
-  const matchedItems = items.filter((item) => releaseMatchesGame(item.title, game.title));
-  if (matchedItems.length === 0) {
-    igdbLogger.debug(
-      { gameTitle: game.title, originalCount: items.length },
-      "No items passed strict title matching"
-    );
-    return null;
-  }
+    // Filter out releases matching the user's global release-name blacklist before anything
+    // else touches them (including the AI auto-download check further down the pipeline).
+    globallyFiltered = filterByReleaseNameBlacklist(matchedItems, blacklistTerms);
 
-  // Filter out releases matching the user's global release-name blacklist before anything
-  // else touches them (including the AI auto-download check further down the pipeline).
-  const globallyFiltered = filterByReleaseNameBlacklist(matchedItems, blacklistTerms);
+    // Only page further when the blacklist hid this whole page and more results may exist.
+    if (globallyFiltered.length > 0 || items.length < AUTO_SEARCH_PAGE_SIZE) break;
+  }
 
   // Filter out per-game blacklisted releases
   const blacklisted = await storage.getReleaseBlacklistSet(game.id);

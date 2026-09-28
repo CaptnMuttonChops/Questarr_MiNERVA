@@ -499,7 +499,9 @@ export function parseJsonStringArray(value: string | null | undefined): string[]
   if (!value) return [];
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as string[]) : [];
+    return Array.isArray(parsed) && parsed.every((entry) => typeof entry === "string")
+      ? (parsed as string[])
+      : [];
   } catch {
     return [];
   }

@@ -687,6 +687,17 @@ describe("filterByReleaseNameBlacklist", () => {
     expect(filterByReleaseNameBlacklist(items, ["", "  "])).toEqual(items);
   });
 
+  it("ignores whitespace-only terms against titles containing spaces", () => {
+    const items = [makeItem("Some Game Deluxe Edition")];
+    expect(filterByReleaseNameBlacklist(items, [" ", "\t"])).toEqual(items);
+  });
+
+  it("trims surrounding whitespace from terms before matching", () => {
+    const items = [makeItem("Game-HYPERVISOR"), makeItem("Game-CODEX")];
+    const result = filterByReleaseNameBlacklist(items, ["  hypervisor  "]);
+    expect(result.map((item) => item.title)).toEqual(["Game-CODEX"]);
+  });
+
   it("returns empty array when all items match a blacklisted term", () => {
     const items = [makeItem("Game-HYPERVISOR-1"), makeItem("Game-HYPERVISOR-2")];
     expect(filterByReleaseNameBlacklist(items, ["hypervisor"])).toHaveLength(0);

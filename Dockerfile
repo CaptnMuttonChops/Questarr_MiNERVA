@@ -111,9 +111,9 @@ EXPOSE 5000
 # entrypoint.sh's final line).
 # nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint -- see comment above
 ENTRYPOINT ["/entrypoint.sh"]
-# nosemgrep: dockerfile.security.missing-user.missing-user -- entrypoint.sh drops to the unprivileged questarr user via su-exec before this CMD ever runs
 # Invoke node directly (same entry point "npm run start" resolves to) rather than
 # through npm, which is removed above.
+# nosemgrep: dockerfile.security.missing-user.missing-user -- entrypoint.sh drops to the unprivileged questarr user via su-exec before this CMD ever runs
 CMD ["node", "dist/server/index.js"]
 
 LABEL org.opencontainers.image.title="Questarr"

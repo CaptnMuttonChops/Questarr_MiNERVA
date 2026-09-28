@@ -39,7 +39,7 @@ export default function TagListSettingsCard({
   saveLabel,
   onReset,
   children,
-}: TagListSettingsCardProps) {
+}: Readonly<TagListSettingsCardProps>) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

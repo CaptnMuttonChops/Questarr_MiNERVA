@@ -32,7 +32,7 @@ export default function TagListEditor({
   emptyText,
   addAriaLabel,
   removeAriaLabel,
-}: TagListEditorProps) {
+}: Readonly<TagListEditorProps>) {
   const [inputValue, setInputValue] = useState("");
 
   const handleAdd = useCallback(() => {

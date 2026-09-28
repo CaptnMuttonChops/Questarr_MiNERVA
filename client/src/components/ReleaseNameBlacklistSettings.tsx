@@ -10,7 +10,7 @@ interface ReleaseNameBlacklistSettingsProps {
 export default function ReleaseNameBlacklistSettings({
   blacklistTerms,
   onTermsChange,
-}: ReleaseNameBlacklistSettingsProps) {
+}: Readonly<ReleaseNameBlacklistSettingsProps>) {
   const [terms, setTerms] = useState<string[]>(blacklistTerms);
 
   useEffect(() => {

@@ -16,7 +16,7 @@ export default function PreferredReleaseGroupsSettings({
   filterByPreferredGroups,
   onGroupsChange,
   onFilterChange,
-}: PreferredReleaseGroupsSettingsProps) {
+}: Readonly<PreferredReleaseGroupsSettingsProps>) {
   const [groups, setGroups] = useState<string[]>(preferredGroups);
   const [filterEnabled, setFilterEnabled] = useState(filterByPreferredGroups);
 

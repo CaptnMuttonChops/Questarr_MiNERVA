@@ -22,7 +22,7 @@ A video game management application inspired by the -Arr apps (Sonarr, Radarr, P
 [![CI](https://github.com/Doezer/Questarr/actions/workflows/ci.yml/badge.svg)](https://github.com/Doezer/Questarr/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/Doezer/Questarr/branch/main/graph/badge.svg)](https://codecov.io/gh/Doezer/Questarr)
 [![Code Scanning](https://github.com/Doezer/Questarr/actions/workflows/sast.yml/badge.svg)](https://github.com/Doezer/Questarr/security/code-scanning)
-[![tests](https://img.shields.io/badge/tests-1800%2B%20passing-brightgreen)](https://github.com/Doezer/Questarr/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-3200%2B%20passing-brightgreen)](https://github.com/Doezer/Questarr/actions/workflows/ci.yml)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Doezer/Questarr/graphs/commit-activity)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Doezer/Questarr?utm_source=oss&utm_medium=github&utm_campaign=Doezer%2FQuestarr&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 

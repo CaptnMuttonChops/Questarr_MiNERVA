@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 // Use vi.hoisted to create the mock object
@@ -181,5 +182,40 @@ describe("Path Traversal Vulnerability in Routes", () => {
       path.resolve(root, "config/ssl/server.crt"),
       path.resolve(root, "config/ssl/server.key")
     );
+  });
+
+  it("rejects a cert path that is a symlink inside the root pointing outside it", async () => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "questarr-ssl-outside-"));
+    const insideDir = fs.mkdtempSync(path.join(process.cwd(), ".tmp-ssl-symlink-"));
+    try {
+      fs.writeFileSync(path.join(outsideDir, "secret.pem"), "not a cert");
+      fs.symlinkSync(path.join(outsideDir, "secret.pem"), path.join(insideDir, "cert.pem"));
+      fs.symlinkSync(outsideDir, path.join(insideDir, "linked-dir"));
+      const app = await createApp();
+
+      const fileLink = await request(app)
+        .patch("/api/settings/ssl")
+        .send({
+          enabled: true,
+          port: 9898,
+          certPath: path.relative(process.cwd(), path.join(insideDir, "cert.pem")),
+          keyPath: "config/ssl/server.key",
+        });
+      expect(fileLink.status).toBe(403);
+      expect(fileLink.body.error).toMatch(/Access to cert path is not allowed/);
+
+      const dirLink = await request(app)
+        .patch("/api/settings/ssl")
+        .send({
+          enabled: false,
+          port: 9898,
+          certPath: path.relative(process.cwd(), path.join(insideDir, "linked-dir", "new.pem")),
+        });
+      expect(dirLink.status).toBe(403);
+      expect(mockValidateCertFiles).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(insideDir, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 });

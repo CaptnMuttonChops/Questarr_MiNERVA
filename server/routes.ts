@@ -126,6 +126,34 @@ import { readLastLogLines } from "./log-file.js";
 // Root directory for the file system browser; restrict browsing to this tree
 const FILE_BROWSER_ROOT = fs.realpathSync(process.cwd());
 
+// Resolves a user-supplied path against FILE_BROWSER_ROOT, following symlinks, and
+// returns the canonical path only if it stays inside the root (null otherwise). A file
+// that doesn't exist yet is canonicalized through its parent directory, so a symlinked
+// directory can't be used to point a not-yet-created file outside the root either.
+async function resolveCanonicalWithinFileBrowserRoot(input: string): Promise<string | null> {
+  const resolved = path.resolve(FILE_BROWSER_ROOT, input);
+  let canonical: string;
+  try {
+    canonical = await fs.promises.realpath(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    try {
+      canonical = path.join(
+        await fs.promises.realpath(path.dirname(resolved)),
+        path.basename(resolved)
+      );
+    } catch (parentError) {
+      if ((parentError as NodeJS.ErrnoException).code !== "ENOENT") throw parentError;
+      canonical = resolved;
+    }
+  }
+  const relative = path.relative(FILE_BROWSER_ROOT, canonical);
+  if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+    return null;
+  }
+  return canonical;
+}
+
 type IgdbConfigSource = "env" | "database" | undefined;
 
 interface IgdbConfigStatus {
@@ -1157,35 +1185,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid 'enabled' value" });
       if (typeof port !== "number") return res.status(400).json({ error: "Invalid 'port' value" });
 
-      // Security check for file paths
+      if (
+        (certPath !== undefined && typeof certPath !== "string") ||
+        (keyPath !== undefined && typeof keyPath !== "string")
+      ) {
+        return res.status(400).json({ error: "Invalid certificate or key path" });
+      }
+
+      // Security check for file paths: canonical (symlink-resolved) and inside the root.
       let resolvedCertPath: string | undefined = certPath;
       let resolvedKeyPath: string | undefined = keyPath;
-      if (certPath || keyPath) {
-        const normalizedRoot = FILE_BROWSER_ROOT.endsWith(path.sep)
-          ? FILE_BROWSER_ROOT
-          : FILE_BROWSER_ROOT + path.sep;
-
-        if (certPath) {
-          resolvedCertPath = path.resolve(FILE_BROWSER_ROOT, certPath);
-          if (!resolvedCertPath.startsWith(normalizedRoot)) {
-            return res.status(403).json({ error: "Access to cert path is not allowed" });
-          }
+      if (certPath) {
+        const canonical = await resolveCanonicalWithinFileBrowserRoot(certPath);
+        if (!canonical) {
+          return res.status(403).json({ error: "Access to cert path is not allowed" });
         }
-        if (keyPath) {
-          resolvedKeyPath = path.resolve(FILE_BROWSER_ROOT, keyPath);
-          if (!resolvedKeyPath.startsWith(normalizedRoot)) {
-            return res.status(403).json({ error: "Access to key path is not allowed" });
-          }
+        resolvedCertPath = canonical;
+      }
+      if (keyPath) {
+        const canonical = await resolveCanonicalWithinFileBrowserRoot(keyPath);
+        if (!canonical) {
+          return res.status(403).json({ error: "Access to key path is not allowed" });
         }
+        resolvedKeyPath = canonical;
       }
 
       // Validate if enabling SSL
       if (enabled) {
         if (certPath && keyPath) {
-          // Use the already root-contained paths, not the raw request values: certPath/
-          // keyPath here haven't been checked against FILE_BROWSER_ROOT, so passing them
-          // straight to validateCertFiles would let an authenticated caller point it at
-          // an arbitrary filesystem path.
+          // Validate the same canonical paths that were checked above and get saved below.
           const { validateCertFiles } = await import("./ssl.js"); // Dynamic import to avoid circular deps if any
           const { valid, error } = await validateCertFiles(
             resolvedCertPath as string,

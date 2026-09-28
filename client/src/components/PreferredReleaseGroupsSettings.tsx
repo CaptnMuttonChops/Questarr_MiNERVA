@@ -11,6 +11,7 @@ interface PreferredReleaseGroupsSettingsProps {
   onFilterChange: (enabled: boolean) => void;
 }
 
+/** Settings card for preferred release groups and the related pre-filter switch. */
 export default function PreferredReleaseGroupsSettings({
   preferredGroups,
   filterByPreferredGroups,

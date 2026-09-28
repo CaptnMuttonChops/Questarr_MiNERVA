@@ -7,6 +7,7 @@ interface ReleaseNameBlacklistSettingsProps {
   onTermsChange: (terms: string[]) => void;
 }
 
+/** Settings card for the global list of terms that hide matching release names everywhere. */
 export default function ReleaseNameBlacklistSettings({
   blacklistTerms,
   onTermsChange,

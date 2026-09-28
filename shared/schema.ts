@@ -728,6 +728,32 @@ function validateUserSettingsEnums(
       });
     }
   }
+
+  // Text columns holding a JSON-encoded string array are parsed on every search, so a
+  // non-array or non-string element must be rejected at write time rather than at read.
+  const jsonStringArrayTextFields = ["releaseNameBlacklist"];
+  for (const key of jsonStringArrayTextFields) {
+    const raw = value[key];
+    if (raw === undefined || raw === null) continue;
+    if (!isJsonStringArray(raw)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} must be a JSON-encoded array of strings`,
+      });
+    }
+  }
+}
+
+/** Returns true when `raw` is a string containing a JSON array whose elements are all strings. */
+function isJsonStringArray(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === "string");
+  } catch {
+    return false;
+  }
 }
 
 export const insertReleaseBlacklistSchema = createInsertSchema(releaseBlacklist).omit({

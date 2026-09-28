@@ -270,6 +270,7 @@ const AUTO_SEARCH_PAGE_SIZE = 10;
 // whole page, before concluding that no eligible release exists.
 const AUTO_SEARCH_MAX_PAGES = 5;
 
+/** Logs indexer errors from an auto-search, flagging when every error is network-related. */
 function logAutoSearchErrors(gameTitle: string, errors: string[]): void {
   if (errors.length === 0) return;
   const networkKeywords = [
@@ -295,6 +296,12 @@ function logAutoSearchErrors(gameTitle: string, errors: string[]): void {
   }
 }
 
+/**
+ * Searches all indexers for a game and returns its eligible releases, categorized by type.
+ * Releases are title-matched, then filtered by the user's global release-name blacklist and
+ * the game's own blacklist. When the global blacklist hides a whole page, later pages are
+ * fetched (up to AUTO_SEARCH_MAX_PAGES). Returns null when no eligible release is found.
+ */
 async function searchAndCategorizeItemsForGame(
   game: Pick<Game, "id" | "title">,
   downloadRules: string | null,
@@ -1190,6 +1197,11 @@ export async function checkDownloadStatus() {
   }
 }
 
+/**
+ * Runs the scheduled auto-search for every user's wanted and owned games, applying the
+ * user's release filters (global blacklist, preferred groups, platform, download rules)
+ * before notifying or auto-downloading.
+ */
 export async function checkAutoSearch() {
   igdbLogger.debug("Checking auto-search for wanted games...");
 

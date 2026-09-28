@@ -113,6 +113,33 @@ describe("updateUserSettingsSchema array fields", () => {
   });
 });
 
+describe("updateUserSettingsSchema releaseNameBlacklist", () => {
+  it.each([
+    ["non-JSON text", "HYPERVISOR"],
+    ["a JSON object", '{"a":"b"}'],
+    ["a JSON string", '"HYPERVISOR"'],
+    ["an array with a non-string element", '["HYPERVISOR", 123]'],
+  ])("rejects %s", (_label, value) => {
+    const result = updateUserSettingsSchema.safeParse({ releaseNameBlacklist: value });
+    expect(result.success).toBe(false);
+    expect(result.error?.flatten().fieldErrors).toMatchObject({
+      releaseNameBlacklist: ["releaseNameBlacklist must be a JSON-encoded array of strings"],
+    });
+  });
+
+  it("accepts a JSON-encoded array of strings", () => {
+    const result = updateUserSettingsSchema.safeParse({
+      releaseNameBlacklist: '["HYPERVISOR", "CAM"]',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts null to clear the blacklist", () => {
+    const result = updateUserSettingsSchema.safeParse({ releaseNameBlacklist: null });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("insertIndexerSchema", () => {
   it("requires non-empty name, url, and apiKey", () => {
     const result = insertIndexerSchema.safeParse({

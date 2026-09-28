@@ -573,7 +573,11 @@ async function saveIgdbCredentialsIfProvided(
   return null;
 }
 
-// Helper function for aggregated indexer search
+/**
+ * Handles an aggregated indexer search request. Results are filtered by the requesting user's
+ * global release-name blacklist and, when a gameId is given, that game's blacklist, before AI
+ * enrichment. A canonical game-title search also refreshes the game's availability badge.
+ */
 async function handleAggregatedIndexerSearch(req: Request, res: Response) {
   try {
     const { query, category, cat } = req.query;

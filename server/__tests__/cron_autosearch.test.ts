@@ -123,6 +123,7 @@ vi.mock("../xrel.js", () => ({
 // Import the function under test
 // We need to use dynamic import or require because of the hoisting of vi.mock
 const { checkAutoSearch, categorizeSearchItems } = await import("../cron.js");
+const { igdbLogger } = await import("../logger.js");
 
 describe("Cron - checkAutoSearch", () => {
   const userId = "user-123";
@@ -1045,6 +1046,70 @@ describe("Cron - checkAutoSearch", () => {
     expect(mockAddNotification).toHaveBeenCalledWith(
       expect.objectContaining({ userId, title: "Game Available" })
     );
+  });
+
+  it("should stop paging after the page limit when every page is globally blacklisted", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    const blacklistedPage = Array.from({ length: 10 }, (_, i) => ({
+      title: `Test Game-HYPERVISOR-${i}`,
+      link: `https://example.com/download${i}`,
+      pubDate: FIXED_PUB_DATE,
+      seeders: 50,
+      size: 10_000,
+    }));
+    mockSearchAllIndexers.mockResolvedValue({ items: blacklistedPage, errors: [], total: 100 });
+
+    await checkAutoSearch();
+
+    expect(mockSearchAllIndexers).toHaveBeenCalledTimes(5);
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+    expect(mockAddNotification).not.toHaveBeenCalled();
+  });
+
+  it("should stop paging when a later page comes back empty", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    const blacklistedPage = Array.from({ length: 10 }, (_, i) => ({
+      title: `Test Game-HYPERVISOR-${i}`,
+      link: `https://example.com/download${i}`,
+      pubDate: FIXED_PUB_DATE,
+      seeders: 50,
+      size: 10_000,
+    }));
+    mockSearchAllIndexers
+      .mockResolvedValueOnce({ items: blacklistedPage, errors: [], total: 10 })
+      .mockResolvedValueOnce({ items: [], errors: [], total: 10 });
+
+    await checkAutoSearch();
+
+    expect(mockSearchAllIndexers).toHaveBeenCalledTimes(2);
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+  });
+
+  it.each([
+    ["network", ["fetch failed"], "Search failed due to network connectivity issues"],
+    ["other", ["Indexer returned 500"], "Errors during search"],
+  ])("should log %s indexer errors and still process results", async (_label, errors, message) => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockSearchAllIndexers.mockResolvedValue({ items: [], errors, total: 0 });
+
+    await checkAutoSearch();
+
+    expect(igdbLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ gameTitle: game.title }),
+      expect.stringContaining(message)
+    );
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
   });
 
   it("should clear search results badge when indexer returns zero items", async () => {

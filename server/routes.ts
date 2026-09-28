@@ -1182,8 +1182,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate if enabling SSL
       if (enabled) {
         if (certPath && keyPath) {
+          // Use the already root-contained paths, not the raw request values: certPath/
+          // keyPath here haven't been checked against FILE_BROWSER_ROOT, so passing them
+          // straight to validateCertFiles would let an authenticated caller point it at
+          // an arbitrary filesystem path.
           const { validateCertFiles } = await import("./ssl.js"); // Dynamic import to avoid circular deps if any
-          const { valid, error } = await validateCertFiles(certPath, keyPath);
+          const { valid, error } = await validateCertFiles(
+            resolvedCertPath as string,
+            resolvedKeyPath as string
+          );
           if (!valid) {
             return res.status(400).json({ error: `Invalid SSL configuration: ${error}` });
           }
@@ -1193,8 +1200,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // But simpler to just require them if they are changing.
           // If they are missing in body, let's look up current config
           const current = configLoader.getSslConfig();
-          const effectiveCert = certPath || current.certPath;
-          const effectiveKey = keyPath || current.keyPath;
+          // current.certPath/keyPath were already root-contained when they were saved,
+          // so only the newly supplied (resolved) values need the same treatment here.
+          const effectiveCert = certPath ? resolvedCertPath : current.certPath;
+          const effectiveKey = keyPath ? resolvedKeyPath : current.keyPath;
 
           if (!effectiveCert || !effectiveKey) {
             return res
@@ -4279,7 +4288,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 archive.append(Buffer.from(buffer), { name: filename });
               }
             } catch (error) {
-              console.error(`Error adding ${download.title} to bundle:`, error);
+              // download.title is user/indexer-controlled; keep it out of the format-string
+              // position (console.error runs util.format on its first argument, so a title
+              // containing "%s" etc. would otherwise consume `error` as a substitution).
+              console.error("Error adding to bundle:", download.title, error);
             }
           })
         );

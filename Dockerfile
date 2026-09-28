@@ -2,6 +2,12 @@
 FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS base
 WORKDIR /app
 
+# Pick up Alpine's latest patched packages for this branch (e.g. openssl, expat pulled
+# in transitively by python3 below) without moving off the pinned base image digest —
+# the digest still fixes the OS/Node version, apk upgrade only refreshes point-release
+# security fixes within it.
+RUN apk update && apk upgrade --no-cache
+
 # better-sqlite3 bundles a prebuilt binary for this platform, so no C++
 # compilation ever happens, but npm's implicit `node-gyp rebuild` still runs
 # unconditionally on install (before it evaluates the prebuild and no-ops the
@@ -22,6 +28,9 @@ RUN npm run build
 FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS production
 
 WORKDIR /app
+
+# Same as the base stage: refresh patched OS packages within this pinned Alpine branch.
+RUN apk update && apk upgrade --no-cache
 
 # Set default environment variables
 ENV SQLITE_DB_PATH=/app/data/sqlite.db
@@ -68,6 +77,13 @@ COPY package*.json ./
 
 RUN npm prune --omit=dev
 
+# The base image ships a global npm CLI (with its own bundled node_modules, e.g. tar,
+# ip-address, brace-expansion) that CMD below no longer needs at runtime — it execs
+# node directly. Removing it drops those bundled copies from the shipped image instead
+# of carrying whatever versions happened to be vendored into this Node release's npm.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+      /usr/local/bin/corepack /usr/local/lib/node_modules/corepack
+
 # Copy necessary files from build stage
 COPY --from=builder /app/dist ./dist
 
@@ -96,7 +112,9 @@ EXPOSE 5000
 # nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint -- see comment above
 ENTRYPOINT ["/entrypoint.sh"]
 # nosemgrep: dockerfile.security.missing-user.missing-user -- entrypoint.sh drops to the unprivileged questarr user via su-exec before this CMD ever runs
-CMD ["npm", "run", "start"]
+# Invoke node directly (same entry point "npm run start" resolves to) rather than
+# through npm, which is removed above.
+CMD ["node", "dist/server/index.js"]
 
 LABEL org.opencontainers.image.title="Questarr"
 LABEL org.opencontainers.image.description="Questarr is a smart game library manager that automates discovery and downloads, inspired by the *Arr ecosystem."

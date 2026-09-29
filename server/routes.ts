@@ -262,7 +262,12 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
-import { searchAllIndexers, filterBlacklistedReleases, enrichWithAiAnalysis } from "./search.js";
+import {
+  searchAllIndexers,
+  filterBlacklistedReleases,
+  filterByReleaseNameBlacklist,
+  enrichWithAiAnalysis,
+} from "./search.js";
 import { xrelClient, DEFAULT_XREL_BASE, ALLOWED_XREL_DOMAINS } from "./xrel.js";
 import {
   normalizeTitle,
@@ -270,6 +275,7 @@ import {
   releaseMatchesGame,
   parseReleaseMetadata,
   matchesPlatformFilter,
+  parseJsonStringArray,
 } from "../shared/title-utils.js";
 import { categorizeDownload, type DownloadCategory } from "../shared/download-categorizer.js";
 import { SUPPORT_WORKER_ORIGIN } from "../shared/support-config.js";
@@ -608,7 +614,11 @@ async function saveIgdbCredentialsIfProvided(
   return null;
 }
 
-// Helper function for aggregated indexer search
+/**
+ * Handles an aggregated indexer search request. Results are filtered by the requesting user's
+ * global release-name blacklist and, when a gameId is given, that game's blacklist, before AI
+ * enrichment. A canonical game-title search also refreshes the game's availability badge.
+ */
 async function handleAggregatedIndexerSearch(req: Request, res: Response) {
   try {
     const { query, category, cat } = req.query;
@@ -634,19 +644,23 @@ async function handleAggregatedIndexerSearch(req: Request, res: Response) {
       offset,
     });
 
-    // Filter out blacklisted releases when a gameId context is provided
+    // Global release-name blacklist (case-insensitive substring match) applies to every
+    // search regardless of gameId, so it's resolved and applied up front.
     const gameId = req.query.gameId as string | undefined;
     let filteredItems = items;
-    let blacklistedCount = 0;
+    let userSettings: Awaited<ReturnType<typeof storage.getUserSettings>> | undefined;
+    if (req.user) {
+      userSettings = await storage.getUserSettings(req.user.id);
+      const blacklistTerms = parseJsonStringArray(userSettings?.releaseNameBlacklist);
+      filteredItems = filterByReleaseNameBlacklist(items, blacklistTerms);
+    }
+
+    // Filter out per-game blacklisted releases when a gameId context is provided
     if (gameId && req.user) {
       const game = await storage.getGame(gameId);
       if (game && game.userId === req.user.id) {
-        const [blacklisted, userSettings] = await Promise.all([
-          storage.getReleaseBlacklistSet(gameId),
-          storage.getUserSettings(req.user.id),
-        ]);
-        filteredItems = filterBlacklistedReleases(items, blacklisted);
-        blacklistedCount = items.length - filteredItems.length;
+        const blacklisted = await storage.getReleaseBlacklistSet(gameId);
+        filteredItems = filterBlacklistedReleases(filteredItems, blacklisted);
 
         // Update the "has results" flag only for canonical game-title searches so that
         // partial/custom user-typed queries in the download dialog don't flip the badge
@@ -667,6 +681,7 @@ async function handleAggregatedIndexerSearch(req: Request, res: Response) {
       }
     }
 
+    const blacklistedCount = items.length - filteredItems.length;
     const enrichedItems = await enrichWithAiAnalysis(filteredItems);
 
     return res.json({

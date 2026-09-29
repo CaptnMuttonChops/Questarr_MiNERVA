@@ -8,7 +8,12 @@ import { DownloaderManager } from "./downloaders.js";
 import { resolveDownloadRelativePath, buildRemoteImportPath } from "./downloaders/utils.js";
 import { torznabClient } from "./torznab.js";
 import { newznabClient } from "./newznab.js";
-import { searchAllIndexers, filterBlacklistedReleases, type SearchItem } from "./search.js";
+import {
+  searchAllIndexers,
+  filterBlacklistedReleases,
+  filterByReleaseNameBlacklist,
+  type SearchItem,
+} from "./search.js";
 import { typesafeClient, type ReleaseType } from "./typesafe.js";
 import { xrelClient, DEFAULT_XREL_BASE } from "./xrel.js";
 import { steamService } from "./steam.js";
@@ -260,56 +265,89 @@ function applyPreferredPlatformFilter(
   });
 }
 
+const AUTO_SEARCH_PAGE_SIZE = 10;
+// How many result pages auto-search walks when the global release-name blacklist hides a
+// whole page, before concluding that no eligible release exists.
+const AUTO_SEARCH_MAX_PAGES = 5;
+
+/** Logs indexer errors from an auto-search, flagging when every error is network-related. */
+function logAutoSearchErrors(gameTitle: string, errors: string[]): void {
+  if (errors.length === 0) return;
+  const networkKeywords = [
+    "fetch failed",
+    "Unsafe URL detected",
+    "ENOTFOUND",
+    "EAI_AGAIN",
+    "ETIMEDOUT",
+    "network timeout",
+  ];
+
+  const areAllErrorsNetworkRelated = errors.every((err) =>
+    networkKeywords.some((keyword) => err.includes(keyword))
+  );
+
+  if (areAllErrorsNetworkRelated) {
+    igdbLogger.warn(
+      { gameTitle, errorCount: errors.length },
+      "Search failed due to network connectivity issues (DNS/Fetch/Safety check). Please check your internet connection."
+    );
+  } else {
+    igdbLogger.warn({ gameTitle, errors }, "Errors during search");
+  }
+}
+
+/**
+ * Searches all indexers for a game and returns its eligible releases, categorized by type.
+ * Releases are title-matched, then filtered by the user's global release-name blacklist and
+ * the game's own blacklist. When the global blacklist hides a whole page, later pages are
+ * fetched (up to AUTO_SEARCH_MAX_PAGES). Returns null when no eligible release is found.
+ */
 async function searchAndCategorizeItemsForGame(
   game: Pick<Game, "id" | "title">,
   downloadRules: string | null,
-  indexerPriorityMap?: Map<string, number>
+  indexerPriorityMap?: Map<string, number>,
+  blacklistTerms: string[] = []
 ): Promise<AutoSearchCategorizedItems | null> {
-  const { items, errors } = await searchAllIndexers({
-    query: game.title,
-    limit: 10,
-  });
+  let matchedItems: SearchItem[] = [];
+  let globallyFiltered: SearchItem[] = [];
 
-  if (errors.length > 0) {
-    const networkKeywords = [
-      "fetch failed",
-      "Unsafe URL detected",
-      "ENOTFOUND",
-      "EAI_AGAIN",
-      "ETIMEDOUT",
-      "network timeout",
-    ];
+  for (let page = 0; page < AUTO_SEARCH_MAX_PAGES; page++) {
+    const { items, errors } = await searchAllIndexers({
+      query: game.title,
+      limit: AUTO_SEARCH_PAGE_SIZE,
+      offset: page * AUTO_SEARCH_PAGE_SIZE,
+    });
 
-    const areAllErrorsNetworkRelated = errors.every((err) =>
-      networkKeywords.some((keyword) => err.includes(keyword))
-    );
+    logAutoSearchErrors(game.title, errors);
 
-    if (areAllErrorsNetworkRelated) {
-      igdbLogger.warn(
-        { gameTitle: game.title, errorCount: errors.length },
-        "Search failed due to network connectivity issues (DNS/Fetch/Safety check). Please check your internet connection."
-      );
-    } else {
-      igdbLogger.warn({ gameTitle: game.title, errors }, "Errors during search");
+    if (items.length === 0) {
+      if (page === 0) return null;
+      break;
     }
+
+    matchedItems = items.filter((item) => releaseMatchesGame(item.title, game.title));
+    // A first page with no title match means the search is not about this game. Later pages
+    // are only fetched because the blacklist hid a whole page, so an unrelated page there
+    // should not stop the search.
+    if (matchedItems.length === 0 && page === 0) {
+      igdbLogger.debug(
+        { gameTitle: game.title, originalCount: items.length },
+        "No items passed strict title matching"
+      );
+      return null;
+    }
+
+    // Filter out releases matching the user's global release-name blacklist before anything
+    // else touches them (including the AI auto-download check further down the pipeline).
+    globallyFiltered = filterByReleaseNameBlacklist(matchedItems, blacklistTerms);
+
+    // Only page further when the blacklist hid this whole page and more results may exist.
+    if (globallyFiltered.length > 0 || items.length < AUTO_SEARCH_PAGE_SIZE) break;
   }
 
-  if (items.length === 0) {
-    return null;
-  }
-
-  const matchedItems = items.filter((item) => releaseMatchesGame(item.title, game.title));
-  if (matchedItems.length === 0) {
-    igdbLogger.debug(
-      { gameTitle: game.title, originalCount: items.length },
-      "No items passed strict title matching"
-    );
-    return null;
-  }
-
-  // Filter out blacklisted releases
+  // Filter out per-game blacklisted releases
   const blacklisted = await storage.getReleaseBlacklistSet(game.id);
-  const nonBlacklisted = filterBlacklistedReleases(matchedItems, blacklisted);
+  const nonBlacklisted = filterBlacklistedReleases(globallyFiltered, blacklisted);
 
   if (nonBlacklisted.length === 0) {
     igdbLogger.debug(
@@ -1162,6 +1200,11 @@ export async function checkDownloadStatus() {
   }
 }
 
+/**
+ * Runs the scheduled auto-search for every user's wanted and owned games, applying the
+ * user's release filters (global blacklist, preferred groups, platform, download rules)
+ * before notifying or auto-downloading.
+ */
 export async function checkAutoSearch() {
   igdbLogger.debug("Checking auto-search for wanted games...");
 
@@ -1217,6 +1260,7 @@ export async function checkAutoSearch() {
 
         const preferredGroups = parseJsonStringArray(settings.preferredReleaseGroups);
         const preferredPlatform = settings.preferredPlatform ?? null;
+        const blacklistTerms = parseJsonStringArray(settings.releaseNameBlacklist);
 
         for (const game of wantedGames) {
           try {
@@ -1232,7 +1276,8 @@ export async function checkAutoSearch() {
             const searchResult = await searchAndCategorizeItemsForGame(
               game,
               settings.downloadRules,
-              indexerPriorityMap
+              indexerPriorityMap,
+              blacklistTerms
             );
             if (!searchResult) {
               // No results at all (zero results or all blacklisted) — clear the badge
@@ -1432,7 +1477,8 @@ export async function checkAutoSearch() {
             const searchResult = await searchAndCategorizeItemsForGame(
               game,
               settings.downloadRules,
-              indexerPriorityMap
+              indexerPriorityMap,
+              blacklistTerms
             );
             if (!searchResult) {
               await storage.updateGameSearchResultsAvailable(game.id, false);

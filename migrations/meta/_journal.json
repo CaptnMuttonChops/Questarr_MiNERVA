@@ -295,6 +295,13 @@
       "when": 1790527791208,
       "tag": "0040_numerous_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1790620829965,
+      "tag": "0041_tranquil_kingpin",
+      "breakpoints": true
     }
   ]
 }

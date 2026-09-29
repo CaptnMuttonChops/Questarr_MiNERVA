@@ -52,6 +52,12 @@ export const userSettings = sqliteTable("user_settings", {
   filterByPreferredGroups: integer("filter_by_preferred_groups", { mode: "boolean" })
     .notNull()
     .default(false),
+  // Global, case-insensitive substring blacklist for release names (e.g. "HYPERVISOR"),
+  // stored as a JSON string array. Unlike releaseBlacklist (per-game, exact title match,
+  // added from a specific search result), this applies across every game and every search
+  // flow -- manual search, auto-search, and AI (Jev) enrichment/auto-download analysis --
+  // so a matching release never reaches the user or the AI in the first place.
+  releaseNameBlacklist: text("release_name_blacklist"),
   preferredPlatform: text("preferred_platform"),
   hideAdultContent: integer("hide_adult_content", { mode: "boolean" }).notNull().default(true),
   hideAgeRestrictedContent: integer("hide_age_restricted_content", { mode: "boolean" })
@@ -721,6 +727,32 @@ function validateUserSettingsEnums(
         message: `${key} must be an array of ${element}s`,
       });
     }
+  }
+
+  // Text columns holding a JSON-encoded string array are parsed on every search, so a
+  // non-array or non-string element must be rejected at write time rather than at read.
+  const jsonStringArrayTextFields = ["releaseNameBlacklist"];
+  for (const key of jsonStringArrayTextFields) {
+    const raw = value[key];
+    if (raw === undefined || raw === null) continue;
+    if (!isJsonStringArray(raw)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} must be a JSON-encoded array of strings`,
+      });
+    }
+  }
+}
+
+/** Returns true when `raw` is a string containing a JSON array whose elements are all strings. */
+function isJsonStringArray(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === "string");
+  } catch {
+    return false;
   }
 }
 

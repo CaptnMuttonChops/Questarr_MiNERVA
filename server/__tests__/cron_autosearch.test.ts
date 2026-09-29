@@ -82,6 +82,13 @@ vi.mock("../search.js", () => ({
   searchAllIndexers: mockSearchAllIndexers,
   filterBlacklistedReleases: (items: { title: string }[], blacklisted: Set<string>) =>
     blacklisted.size > 0 ? items.filter((item) => !blacklisted.has(item.title)) : items,
+  filterByReleaseNameBlacklist: (items: { title: string }[], terms: string[]) => {
+    const lowerTerms = terms.map((t) => t.toLowerCase()).filter((t) => t.length > 0);
+    if (lowerTerms.length === 0) return items;
+    return items.filter(
+      (item) => !lowerTerms.some((term) => item.title.toLowerCase().includes(term))
+    );
+  },
 }));
 
 // Mock socket
@@ -116,6 +123,7 @@ vi.mock("../xrel.js", () => ({
 // Import the function under test
 // We need to use dynamic import or require because of the hoisting of vi.mock
 const { checkAutoSearch, categorizeSearchItems } = await import("../cron.js");
+const { igdbLogger } = await import("../logger.js");
 
 describe("Cron - checkAutoSearch", () => {
   const userId = "user-123";
@@ -938,6 +946,241 @@ describe("Cron - checkAutoSearch", () => {
     expect(mockAddNotification).not.toHaveBeenCalled();
     // CR-3: when all items are blacklisted, the "has results" flag must be cleared
     expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+  });
+
+  it("should not notify when the only matched item contains a globally blacklisted term", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    mockSearchAllIndexers.mockResolvedValue({
+      items: [
+        {
+          title: "Test Game-HYPERVISOR",
+          link: "https://example.com/download",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 50,
+          size: 10_000,
+        },
+      ],
+      errors: [],
+      total: 1,
+    });
+
+    await checkAutoSearch();
+
+    expect(mockAddNotification).not.toHaveBeenCalled();
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+  });
+
+  it("should notify for non-blacklisted items alongside a globally blacklisted release", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["hypervisor"]',
+    });
+    mockSearchAllIndexers.mockResolvedValue({
+      items: [
+        {
+          title: "Test Game-HYPERVISOR",
+          link: "https://example.com/download",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 50,
+          size: 10_000,
+        },
+        {
+          title: "Test Game-CODEX",
+          link: "https://example.com/download2",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 40,
+          size: 10_000,
+        },
+      ],
+      errors: [],
+      total: 2,
+    });
+
+    await checkAutoSearch();
+
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, true);
+    expect(mockAddNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId, title: "Game Available" })
+    );
+  });
+
+  it("should page past a result page entirely hidden by the global blacklist", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    const makeItem = (title: string, index: number) => ({
+      title,
+      link: `https://example.com/download${index}`,
+      pubDate: FIXED_PUB_DATE,
+      seeders: 50,
+      size: 10_000,
+    });
+    const blacklistedPage = Array.from({ length: 10 }, (_, i) =>
+      makeItem(`Test Game-HYPERVISOR-${i}`, i)
+    );
+    mockSearchAllIndexers
+      .mockResolvedValueOnce({ items: blacklistedPage, errors: [], total: 11 })
+      .mockResolvedValueOnce({
+        items: [makeItem("Test Game-CODEX", 10)],
+        errors: [],
+        total: 11,
+      });
+
+    await checkAutoSearch();
+
+    expect(mockSearchAllIndexers).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ limit: 10, offset: 10 })
+    );
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, true);
+    expect(mockAddNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId, title: "Game Available" })
+    );
+  });
+
+  it("should keep paging past a later page with no title match", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    const makePage = (prefix: string, start: number) =>
+      Array.from({ length: 10 }, (_, i) => ({
+        title: `${prefix}-${start + i}`,
+        link: `https://example.com/download${start + i}`,
+        pubDate: FIXED_PUB_DATE,
+        seeders: 50,
+        size: 10_000,
+      }));
+    mockSearchAllIndexers
+      .mockResolvedValueOnce({ items: makePage("Test Game-HYPERVISOR", 0), errors: [], total: 21 })
+      .mockResolvedValueOnce({ items: makePage("Unrelated Title", 10), errors: [], total: 21 })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            title: "Test Game-CODEX",
+            link: "https://example.com/download20",
+            pubDate: FIXED_PUB_DATE,
+            seeders: 50,
+            size: 10_000,
+          },
+        ],
+        errors: [],
+        total: 21,
+      });
+
+    await checkAutoSearch();
+
+    expect(mockSearchAllIndexers).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ limit: 10, offset: 20 })
+    );
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, true);
+    expect(mockAddNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId, title: "Game Available" })
+    );
+  });
+
+  it("should stop paging after the page limit when every page is globally blacklisted", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    const blacklistedPage = Array.from({ length: 10 }, (_, i) => ({
+      title: `Test Game-HYPERVISOR-${i}`,
+      link: `https://example.com/download${i}`,
+      pubDate: FIXED_PUB_DATE,
+      seeders: 50,
+      size: 10_000,
+    }));
+    mockSearchAllIndexers.mockResolvedValue({ items: blacklistedPage, errors: [], total: 100 });
+
+    await checkAutoSearch();
+
+    expect(mockSearchAllIndexers).toHaveBeenCalledTimes(5);
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+    expect(mockAddNotification).not.toHaveBeenCalled();
+  });
+
+  it("should stop paging when a later page comes back empty", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    const blacklistedPage = Array.from({ length: 10 }, (_, i) => ({
+      title: `Test Game-HYPERVISOR-${i}`,
+      link: `https://example.com/download${i}`,
+      pubDate: FIXED_PUB_DATE,
+      seeders: 50,
+      size: 10_000,
+    }));
+    mockSearchAllIndexers
+      .mockResolvedValueOnce({ items: blacklistedPage, errors: [], total: 10 })
+      .mockResolvedValueOnce({ items: [], errors: [], total: 10 });
+
+    await checkAutoSearch();
+
+    expect(mockSearchAllIndexers).toHaveBeenCalledTimes(2);
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+  });
+
+  it.each([
+    ["network", ["fetch failed"], "Search failed due to network connectivity issues"],
+    ["other", ["Indexer returned 500"], "Errors during search"],
+  ])("should log %s indexer errors and still process results", async (_label, errors, message) => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockSearchAllIndexers.mockResolvedValue({ items: [], errors, total: 0 });
+
+    await checkAutoSearch();
+
+    expect(igdbLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ gameTitle: game.title }),
+      expect.stringContaining(message)
+    );
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+  });
+
+  it("should clear search results badge when no item passes strict title matching", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockSearchAllIndexers.mockResolvedValue({
+      items: [
+        {
+          title: "Completely Different Title-CODEX",
+          link: "https://example.com/download",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 50,
+          size: 10_000,
+        },
+      ],
+      errors: [],
+      total: 1,
+    });
+
+    await checkAutoSearch();
+
+    expect(igdbLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ gameTitle: game.title, originalCount: 1 }),
+      "No items passed strict title matching"
+    );
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+    expect(mockAddNotification).not.toHaveBeenCalled();
   });
 
   it("should clear search results badge when indexer returns zero items", async () => {

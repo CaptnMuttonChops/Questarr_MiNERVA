@@ -344,6 +344,13 @@ export function createSearchMock() {
     searchAllIndexers: vi.fn().mockResolvedValue({ items: [], total: 0, errors: [] }),
     filterBlacklistedReleases: (items: { title: string }[], blacklisted: Set<string>) =>
       blacklisted.size > 0 ? items.filter((item) => !blacklisted.has(item.title)) : items,
+    filterByReleaseNameBlacklist: (items: { title: string }[], terms: string[]) => {
+      const lowerTerms = terms.map((t) => t.toLowerCase()).filter((t) => t.length > 0);
+      if (lowerTerms.length === 0) return items;
+      return items.filter(
+        (item) => !lowerTerms.some((term) => item.title.toLowerCase().includes(term))
+      );
+    },
     // No-op by default: TypeSafe AI enrichment is unconfigured/off in tests.
     enrichWithAiAnalysis: vi.fn().mockImplementation((items: unknown[]) => Promise.resolve(items)),
   };

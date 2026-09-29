@@ -107,6 +107,7 @@ export const userSettings = pgTable("user_settings", {
   lastSteamSync: timestampMs("last_steam_sync"),
   preferredReleaseGroups: text("preferred_release_groups"),
   filterByPreferredGroups: boolean("filter_by_preferred_groups").notNull().default(false),
+  releaseNameBlacklist: text("release_name_blacklist"),
   preferredPlatform: text("preferred_platform"),
   hideAdultContent: boolean("hide_adult_content").notNull().default(true),
   hideAgeRestrictedContent: boolean("hide_age_restricted_content").notNull().default(true),

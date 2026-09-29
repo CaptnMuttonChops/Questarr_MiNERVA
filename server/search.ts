@@ -231,6 +231,25 @@ export function filterBlacklistedReleases(
 }
 
 /**
+ * Filters search items against the user's global release-name blacklist: a list of
+ * case-insensitive substrings (e.g. "HYPERVISOR") to hide anywhere they appear in a
+ * release's title. Unlike filterBlacklistedReleases (per-game, exact title match), this
+ * applies to every search regardless of which game it's for, so it should run as early as
+ * possible -- before AI (Jev) enrichment/auto-download analysis ever sees the release.
+ */
+export function filterByReleaseNameBlacklist(items: SearchItem[], terms: string[]): SearchItem[] {
+  if (terms.length === 0) return items;
+  const lowerTerms = terms
+    .map((term) => term.trim().toLowerCase())
+    .filter((term) => term.length > 0);
+  if (lowerTerms.length === 0) return items;
+  return items.filter((item) => {
+    const lowerTitle = item.title.toLowerCase();
+    return !lowerTerms.some((term) => lowerTitle.includes(term));
+  });
+}
+
+/**
  * Best-effort AI enrichment of search results via TypeSafe's Jev model: classifies each
  * release's type and flags whether its file size looks plausible. No-op when the user
  * hasn't configured a TypeSafe key/URL. Only the top `AI_ENRICHMENT_MAX_ITEMS` items are

@@ -33,8 +33,8 @@ test.describe("Initial Setup", () => {
       // Fill IGDB Creds if requested (fresh setup)
       const igdbIdInput = page.locator('input[name="igdbClientId"]');
       if (await igdbIdInput.isVisible()) {
-        await igdbIdInput.fill("dummy-client-id");
-        await page.fill('input[name="igdbClientSecret"]', "dummy-client-secret");
+        await igdbIdInput.fill("dummyclientid0000000000000000");
+        await page.fill('input[name="igdbClientSecret"]', "dummyclientsecret000000000000");
       }
 
       // Wait for successful setup response

@@ -29,17 +29,16 @@ test.describe("Game Details", () => {
     const card = page.getByTestId("card-game-test-game-id-123");
     await expect(card).toBeVisible();
 
-    // Hover to show actions
-    await card.hover();
-
-    // Click the details button
-    await page.getByTestId("button-details-test-game-id-123").click();
+    // The whole card opens the details dialog
+    await card.click();
 
     // Expect a modal
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Cyberpunk 2077" })).toBeVisible();
 
-    // Close the modal
+    // Close the modal. The dialog auto-focuses the Download button, whose tooltip opens on
+    // focus; Radix dismisses one layer per Escape, so the first press closes the tooltip.
+    await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).not.toBeVisible();
   });

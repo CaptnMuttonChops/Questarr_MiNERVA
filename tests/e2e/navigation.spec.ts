@@ -7,10 +7,17 @@ test.describe("Navigation", () => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Questarr|Dashboard/);
 
-    await page.getByTestId("nav-discover").click();
+    // "Library" and "Discover" are collapsible groups in the sidebar; navigate via their children
+    await page.getByTestId("nav-browse").click();
     await expect(page).toHaveURL("/discover");
 
-    await page.getByTestId("nav-library").click();
+    await page.getByTestId("nav-wishlist").click();
+    await expect(page).toHaveURL("/wishlist");
+
+    await page.getByTestId("nav-downloads").click();
+    await expect(page).toHaveURL("/downloads");
+
+    await page.getByTestId("nav-all-games").click();
     await expect(page).toHaveURL("/");
 
     await page.getByTestId("nav-settings").click();

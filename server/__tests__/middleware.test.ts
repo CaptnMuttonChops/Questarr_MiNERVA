@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import type { Request, Response, NextFunction } from "express";
 import {
   validateRequest,
@@ -12,6 +12,7 @@ import {
   sanitizeDownloaderUpdateData,
   sanitizeDownloaderDownloadData,
   sanitizeIndexerSearchQuery,
+  rateLimitsDisabled,
 } from "../middleware";
 
 // Mock request and response objects
@@ -768,5 +769,29 @@ describe("Middleware - Input Sanitization", () => {
       expect(req.query?.limit).toBe(50);
       expect(req.query?.offset).toBe(10);
     });
+  });
+});
+
+describe("rateLimitsDisabled", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is off unless DISABLE_RATE_LIMITS is set", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("DISABLE_RATE_LIMITS", "");
+    expect(rateLimitsDisabled()).toBe(false);
+  });
+
+  it.each(["development", "test"])("turns the limits off when NODE_ENV is %s", (nodeEnv) => {
+    vi.stubEnv("NODE_ENV", nodeEnv);
+    vi.stubEnv("DISABLE_RATE_LIMITS", "true");
+    expect(rateLimitsDisabled()).toBe(true);
+  });
+
+  it.each(["production", ""])("never turns the limits off when NODE_ENV is %j", (nodeEnv) => {
+    vi.stubEnv("NODE_ENV", nodeEnv);
+    vi.stubEnv("DISABLE_RATE_LIMITS", "true");
+    expect(rateLimitsDisabled()).toBe(false);
   });
 });

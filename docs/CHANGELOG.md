@@ -34,6 +34,7 @@ All notable changes to this project will be documented in this file.
 - **Pre-import security scanning**: [OPTIONAL] VirusTotal (hash lookup) and ClamAV (local deep scan) checks before a download is unpacked or moved into the library; a detection quarantines the download and raises a Security Alert notification instead of importing it (#1102).
 - **Pending imports**: orphaned downloads (missing game record) get a dedicated "Link Game" action to reattach them instead of stalling silently (#932).
 - **Download search**: results now link back to their indexer/source page (#872).
+- **Global release name blacklist**: Settings → Discovery & Downloads lets you hide any release whose title contains a given term, case-insensitively, across manual search, both auto-search cycles, and AI enrichment/auto-download (#1112, closes #991).
 
 #### Integrations
 

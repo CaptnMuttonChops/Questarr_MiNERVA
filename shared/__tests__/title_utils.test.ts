@@ -204,6 +204,15 @@ describe("title-utils", () => {
     it("handles an empty JSON array", () => {
       expect(parseJsonStringArray("[]")).toEqual([]);
     });
+
+    it("returns empty array when the JSON array contains non-string entries", () => {
+      expect(parseJsonStringArray('["a", 1]')).toEqual([]);
+      expect(parseJsonStringArray("[null]")).toEqual([]);
+    });
+
+    it("keeps whitespace-only strings in a valid string array", () => {
+      expect(parseJsonStringArray('["a", " "]')).toEqual(["a", " "]);
+    });
   });
 
   describe("matchesPlatformFilter", () => {

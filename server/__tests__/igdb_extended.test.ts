@@ -302,6 +302,7 @@ describe("IGDBClient - extended coverage", { timeout: 20000 }, () => {
           cover: { url: "//img/t_thumb/expansion.jpg" },
           first_release_date: 1640995200,
           game_type: 2,
+          url: "https://www.igdb.com/games/expansion-one",
         },
       ],
     });
@@ -321,6 +322,7 @@ describe("IGDBClient - extended coverage", { timeout: 20000 }, () => {
         releaseDate: "2022-01-01",
         category: "dlc",
         gameType: 2,
+        igdbUrl: "https://www.igdb.com/games/expansion-one",
       },
     ]);
     expect(formatted.isReleased).toBe(true);

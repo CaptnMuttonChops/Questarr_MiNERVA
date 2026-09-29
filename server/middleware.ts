@@ -77,6 +77,19 @@ export const generalApiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for the SPA catch-all route (vite's dev middleware transform and the
+// production static/index.html fallback). generalApiLimiter only covers "/api", so
+// without this, that wildcard handler — which does a disk read (and, in dev, a full
+// Vite HTML transform) on every request — has no limit at all. Kept more permissive
+// than the API limiter since real page loads fan out into many asset requests.
+export const staticAssetLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // limit each IP to 300 requests per minute
+  message: "Too many requests, please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Validation middleware to check for validation errors
 export const validateRequest = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
@@ -149,6 +162,21 @@ export const sanitizeDownloadId = [
     .trim()
     .matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
     .withMessage("Invalid download ID format"),
+];
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Sanitization rules for the game journal/milestone/screenshot sub-resource ID params
+export const sanitizeJournalEntryId = [
+  param("entryId").trim().matches(UUID_PATTERN).withMessage("Invalid journal entry ID format"),
+];
+
+export const sanitizeMilestoneId = [
+  param("milestoneId").trim().matches(UUID_PATTERN).withMessage("Invalid milestone ID format"),
+];
+
+export const sanitizeScreenshotId = [
+  param("screenshotId").trim().matches(UUID_PATTERN).withMessage("Invalid screenshot ID format"),
 ];
 
 // Sanitization rules for IGDB ID parameters

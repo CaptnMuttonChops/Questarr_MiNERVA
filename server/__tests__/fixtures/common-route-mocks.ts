@@ -28,6 +28,10 @@ export const mockConfig = {
   nexusmods: {
     apiKey: undefined as string | undefined,
   },
+  steam: {
+    apiKey: undefined as string | undefined,
+    isConfigured: false,
+  },
   auth: {
     jwtSecret: "test-secret",
   },
@@ -64,8 +68,18 @@ export function createStorageMock() {
     updateGameStatus: vi.fn(),
     updateGameHidden: vi.fn(),
     updateGameUserRating: vi.fn(),
-    updateGameNotes: vi.fn(),
     updateGame: vi.fn(),
+    getGameJournalEntries: vi.fn().mockResolvedValue([]),
+    addGameJournalEntry: vi.fn(),
+    deleteGameJournalEntry: vi.fn(),
+    getGameMilestones: vi.fn().mockResolvedValue([]),
+    addGameMilestone: vi.fn(),
+    updateGameMilestone: vi.fn(),
+    deleteGameMilestone: vi.fn(),
+    getGameScreenshots: vi.fn().mockResolvedValue([]),
+    addGameScreenshot: vi.fn(),
+    updateGameScreenshotCaption: vi.fn(),
+    deleteGameScreenshot: vi.fn(),
     updateGameSearchResultsAvailable: vi.fn().mockResolvedValue(undefined),
     updateUserPassword: vi.fn(),
     updateGamesBatch: vi.fn(),
@@ -330,6 +344,13 @@ export function createSearchMock() {
     searchAllIndexers: vi.fn().mockResolvedValue({ items: [], total: 0, errors: [] }),
     filterBlacklistedReleases: (items: { title: string }[], blacklisted: Set<string>) =>
       blacklisted.size > 0 ? items.filter((item) => !blacklisted.has(item.title)) : items,
+    filterByReleaseNameBlacklist: (items: { title: string }[], terms: string[]) => {
+      const lowerTerms = terms.map((t) => t.toLowerCase()).filter((t) => t.length > 0);
+      if (lowerTerms.length === 0) return items;
+      return items.filter(
+        (item) => !lowerTerms.some((term) => item.title.toLowerCase().includes(term))
+      );
+    },
     // No-op by default: TypeSafe AI enrichment is unconfigured/off in tests.
     enrichWithAiAnalysis: vi.fn().mockImplementation((items: unknown[]) => Promise.resolve(items)),
   };

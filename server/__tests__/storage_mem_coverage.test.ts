@@ -211,12 +211,15 @@ describe("MemStorage - Game query methods", () => {
 describe("MemStorage - Game update methods", () => {
   let storage: MemStorageType;
   let gameId: string;
+  let otherGameId: string;
 
   beforeEach(async () => {
     storage = new MemStorage();
     await storage.registerSetupUser(makeUser());
     const game = await storage.addGame(makeGame({ userId: "u1", title: "My Game" }));
     gameId = game.id;
+    const otherGame = await storage.addGame(makeGame({ userId: "u1", title: "My Other Game" }));
+    otherGameId = otherGame.id;
   });
 
   it("updateGameStatus returns undefined for missing game", async () => {
@@ -260,14 +263,59 @@ describe("MemStorage - Game update methods", () => {
     expect(updated?.userRating).toBe(9.5);
   });
 
-  it("updateGameNotes returns undefined for missing game", async () => {
-    const result = await storage.updateGameNotes("nonexistent", "u1", "notes");
-    expect(result).toBeUndefined();
+  it("addGameJournalEntry stores a note for the game", async () => {
+    const entry = await storage.addGameJournalEntry({ gameId, userId: "u1", note: "Great game!" });
+    expect(entry.note).toBe("Great game!");
+    const entries = await storage.getGameJournalEntries(gameId, "u1");
+    expect(entries).toHaveLength(1);
   });
 
-  it("updateGameNotes sets notes", async () => {
-    const updated = await storage.updateGameNotes(gameId, "u1", "Great game!");
-    expect(updated?.notes).toBe("Great game!");
+  it("deleteGameJournalEntry returns false for another user's entry", async () => {
+    const entry = await storage.addGameJournalEntry({ gameId, userId: "u1", note: "Mine" });
+    const result = await storage.deleteGameJournalEntry(entry.id, gameId, "someone-else");
+    expect(result).toBe(false);
+  });
+
+  it("deleteGameJournalEntry returns false for the same user's other game", async () => {
+    const entry = await storage.addGameJournalEntry({ gameId, userId: "u1", note: "Mine" });
+    const result = await storage.deleteGameJournalEntry(entry.id, otherGameId, "u1");
+    expect(result).toBe(false);
+    expect(await storage.getGameJournalEntries(gameId, "u1")).toHaveLength(1);
+  });
+
+  it("addGameMilestone and updateGameMilestone toggle completion", async () => {
+    const milestone = await storage.addGameMilestone({ gameId, userId: "u1", label: "Beat boss" });
+    expect(milestone.completedAt).toBeNull();
+    const updated = await storage.updateGameMilestone(milestone.id, gameId, "u1", true);
+    expect(updated?.completedAt).not.toBeNull();
+  });
+
+  it("updateGameMilestone and deleteGameMilestone return undefined/false for the same user's other game", async () => {
+    const milestone = await storage.addGameMilestone({ gameId, userId: "u1", label: "Beat boss" });
+    expect(
+      await storage.updateGameMilestone(milestone.id, otherGameId, "u1", true)
+    ).toBeUndefined();
+    expect(await storage.deleteGameMilestone(milestone.id, otherGameId, "u1")).toBe(false);
+
+    const unchanged = await storage.getGameMilestones(gameId, "u1");
+    expect(unchanged).toHaveLength(1);
+    expect(unchanged[0]?.completedAt).toBeNull();
+  });
+
+  it("updateGameScreenshotCaption returns undefined for the same user's other game", async () => {
+    const screenshot = await storage.addGameScreenshot({
+      gameId,
+      userId: "u1",
+      filePath: "/data/screenshots/example.png",
+      caption: "Original caption",
+    });
+    expect(
+      await storage.updateGameScreenshotCaption(screenshot.id, otherGameId, "u1", "Hijacked")
+    ).toBeUndefined();
+
+    const unchanged = await storage.getGameScreenshots(gameId, "u1");
+    expect(unchanged).toHaveLength(1);
+    expect(unchanged[0]?.caption).toBe("Original caption");
   });
 
   it("updateGameSearchResultsAvailable sets the flag", async () => {

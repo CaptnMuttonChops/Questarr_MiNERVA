@@ -281,6 +281,27 @@
       "when": 1790463787724,
       "tag": "0038_cuddly_roland_deschain",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1790493486714,
+      "tag": "0039_dapper_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1790527791208,
+      "tag": "0040_numerous_silver_centurion",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1790620829965,
+      "tag": "0041_tranquil_kingpin",
+      "breakpoints": true
     }
   ]
 }

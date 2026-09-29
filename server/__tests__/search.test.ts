@@ -34,8 +34,12 @@ vi.mock("../typesafe.js", () => ({
   },
 }));
 
-const { searchAllIndexers, filterBlacklistedReleases, enrichWithAiAnalysis } =
-  await import("../search.js");
+const {
+  searchAllIndexers,
+  filterBlacklistedReleases,
+  filterByReleaseNameBlacklist,
+  enrichWithAiAnalysis,
+} = await import("../search.js");
 const { storage } = await import("../storage.js");
 const { torznabClient } = await import("../torznab.js");
 const { newznabClient } = await import("../newznab.js");
@@ -639,6 +643,64 @@ describe("filterBlacklistedReleases", () => {
     const items = [makeItem("Game-GROUP")];
     const result = filterBlacklistedReleases(items, new Set());
     expect(result).toBe(items);
+  });
+});
+
+describe("filterByReleaseNameBlacklist", () => {
+  const makeItem = (title: string) => ({
+    title,
+    link: "http://example.com",
+    downloadType: "torrent" as const,
+  });
+
+  it("returns all items when the term list is empty", () => {
+    const items = [makeItem("Game-HYPERVISOR"), makeItem("Game-OTHER")];
+    expect(filterByReleaseNameBlacklist(items, [])).toEqual(items);
+  });
+
+  it("returns original array reference when the term list is empty (fast path)", () => {
+    const items = [makeItem("Game-HYPERVISOR")];
+    expect(filterByReleaseNameBlacklist(items, [])).toBe(items);
+  });
+
+  it("filters out releases whose title contains a blacklisted term, case-insensitively", () => {
+    const items = [makeItem("Game-HYPERVISOR"), makeItem("Game-OTHER")];
+    const result = filterByReleaseNameBlacklist(items, ["hypervisor"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("Game-OTHER");
+  });
+
+  it("matches as a substring anywhere in the title", () => {
+    const items = [makeItem("Some.Game.HYPERVISOR-GROUP")];
+    expect(filterByReleaseNameBlacklist(items, ["HYPERVISOR"])).toHaveLength(0);
+  });
+
+  it("filters using any of multiple terms", () => {
+    const items = [makeItem("Game-CODEX"), makeItem("Game-SKIDROW"), makeItem("Game-PLAZA")];
+    const result = filterByReleaseNameBlacklist(items, ["codex", "skidrow"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("Game-PLAZA");
+  });
+
+  it("ignores blank terms", () => {
+    const items = [makeItem("Game-A")];
+    expect(filterByReleaseNameBlacklist(items, ["", "  "])).toEqual(items);
+  });
+
+  it("ignores whitespace-only terms against titles containing spaces", () => {
+    const items = [makeItem("Some Game Deluxe Edition")];
+    expect(filterByReleaseNameBlacklist(items, [" ", "\t"])).toEqual(items);
+  });
+
+  it("trims surrounding whitespace from terms before matching", () => {
+    const items = [makeItem("Game-HYPERVISOR"), makeItem("Game-CODEX")];
+    const result = filterByReleaseNameBlacklist(items, ["  hypervisor  "]);
+    expect(result.map((item) => item.title)).toEqual(["Game-CODEX"]);
+  });
+
+  it("returns empty array when all items match a blacklisted term", () => {
+    const items = [makeItem("Game-HYPERVISOR-1"), makeItem("Game-HYPERVISOR-2")];
+    expect(filterByReleaseNameBlacklist(items, ["hypervisor"])).toHaveLength(0);
   });
 });
 

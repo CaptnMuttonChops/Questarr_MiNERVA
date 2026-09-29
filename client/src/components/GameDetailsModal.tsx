@@ -34,7 +34,6 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { TagList } from "@/components/ui/tag-list";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,10 +69,11 @@ import {
   Image,
   Link,
   File,
+  Layers,
   ChevronLeft,
   ChevronRight,
-  Pencil,
   ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 import { FaSteam, FaRedditAlien, FaDiscord, FaWikipediaW, FaTwitch } from "react-icons/fa";
 import {
@@ -85,6 +85,7 @@ import {
   SiItchdotio,
 } from "react-icons/si";
 import { NexusModsIcon } from "./NexusModsIcon";
+import GameJournalTab from "./GameJournalTab";
 import { getSocket } from "@/lib/socket";
 import { useToast } from "@/hooks/use-toast";
 import { useHiddenMutation } from "@/hooks/use-hidden-mutation";
@@ -149,6 +150,48 @@ function scoreColor(score: number): string {
   if (score >= 7.5) return "bg-emerald-600 text-white";
   if (score >= 6.0) return "bg-amber-500 text-white";
   return "bg-red-600 text-white";
+}
+
+const EXPANSION_CATEGORY_LABELS: Record<string, string> = {
+  main: "Main",
+  dlc: "DLC",
+  update: "Update",
+  extra: "Extra",
+  packs: "Packs",
+};
+
+// A tab trigger showing an icon, a label (hidden below sm, shown as a tooltip
+// instead), and an optional count badge. Shared by every tab in the Game
+// Details modal so the icon/label/badge/tooltip structure isn't repeated per tab.
+function GameTabTrigger({
+  value,
+  label,
+  ariaLabel = label,
+  icon,
+  count,
+}: {
+  readonly value: string;
+  readonly label: string;
+  readonly ariaLabel?: string;
+  readonly icon: React.ReactNode;
+  readonly count?: number | undefined;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <TabsTrigger value={value} aria-label={ariaLabel} className="gap-1.5">
+          {icon}
+          <span className="hidden sm:inline">{label}</span>
+          {count !== undefined && count > 0 && (
+            <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
+              {count}
+            </Badge>
+          )}
+        </TabsTrigger>
+      </TooltipTrigger>
+      <TooltipContent className="sm:hidden">{ariaLabel}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 // ── Website links config ──────────────────────────────────────────────────────
@@ -431,33 +474,7 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
   const [selectedScreenshotIndex, setSelectedScreenshotIndex] = useState<number | null>(null);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
-  const [notesValue, setNotesValue] = useState<string>("");
   const [targetPlatformValue, setTargetPlatformValue] = useState("default");
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  // Tracks the live notesValue so the async save's onSuccess (below) can tell
-  // whether the user kept typing after blur, instead of seeing the stale
-  // value it closed over.
-  const notesValueRef = useRef(notesValue);
-  useEffect(() => {
-    notesValueRef.current = notesValue;
-  }, [notesValue]);
-  // Tracks the live isEditingNotes so the server-sync effect (below) can
-  // check it without depending on it — depending on it directly would rerun
-  // the sync (using the still-stale pre-refetch game.notes) the instant a
-  // save flips isEditingNotes back to false, flashing the old value.
-  const isEditingNotesRef = useRef(isEditingNotes);
-  useEffect(() => {
-    isEditingNotesRef.current = isEditingNotes;
-  }, [isEditingNotes]);
-  // Serializes mobile note saves: only one PATCH is ever in flight. A save
-  // requested while one is pending is queued (overwriting any earlier queued
-  // value — only the latest draft matters) and fired once the in-flight one
-  // settles, so two overlapping requests can never complete out of order and
-  // let an older draft silently overwrite a newer one on the server. Each
-  // queued save also remembers which game it targets, so it's dropped
-  // instead of misfiring if the modal has since switched to another game.
-  const notesSaveInFlightRef = useRef(false);
-  const queuedNotesSaveRef = useRef<{ value: string | null; gameId: string } | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [removeFromClient, setRemoveFromClient] = useState(true);
   const [deleteFiles, setDeleteFiles] = useState(true);
@@ -475,31 +492,15 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
       setIsSummaryExpanded(false);
       setSelectedScreenshotIndex(null);
       setDownloadOpen(false);
-      setIsEditingNotes(false);
-      queuedNotesSaveRef.current = null;
     }
   }, [open]);
 
-  // Full reset when switching to a different game — unconditional, since a
-  // new game.id means any in-progress notes draft belongs to a game we're
-  // no longer looking at.
+  // Full reset when switching to a different game.
   useEffect(() => {
     setIsSummaryExpanded(false);
-    setNotesValue(game?.notes ?? "");
     setTargetPlatformValue(getTargetPlatformSelectValue(game));
-    setIsEditingNotes(false);
-    queuedNotesSaveRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.id]);
-
-  // Keep notesValue in sync with the server for the *same* game — e.g. after
-  // the notes mutation's own invalidateQueries refetch lands. Skipped while
-  // actively editing on mobile so a background refetch can't stomp a draft
-  // the user hasn't blurred away from yet.
-  useEffect(() => {
-    if (isMobile && isEditingNotesRef.current) return;
-    setNotesValue(game?.notes ?? "");
-  }, [game?.notes, isMobile]);
 
   // Keep targetPlatformValue in sync with the server value for the same game
   // (e.g. after the target-platform mutation's invalidateQueries refetch lands).
@@ -770,50 +771,6 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
     [supportedTargetPlatformOptions, targetPlatformMutation]
   );
 
-  const notesMutation = useMutation({
-    mutationFn: async ({ gameId, notes }: { gameId: string; notes: string | null }) => {
-      await apiRequest("PATCH", `/api/games/${gameId}/notes`, { notes });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
-    },
-    onError: () => {
-      toast({ description: "Failed to save notes", variant: "destructive" });
-    },
-  });
-
-  // Fires a notes save for `gameId` (the current game by default), or queues
-  // it if one is already in flight (see the refs above) — never lets two
-  // PATCH requests race each other. The target game travels with the save
-  // itself, so a queued draft is dropped instead of misfiring against the
-  // wrong game if the modal switches games while a save is pending.
-  const saveNotes = (trimmed: string | null, gameId: string | undefined = game?.id) => {
-    if (!gameId) return;
-    if (notesSaveInFlightRef.current) {
-      queuedNotesSaveRef.current = { value: trimmed, gameId };
-      return;
-    }
-    notesSaveInFlightRef.current = true;
-    notesMutation.mutate(
-      { gameId, notes: trimmed },
-      {
-        onSuccess: () => {
-          if (isMobile && game?.id === gameId && notesValueRef.current.trim() === (trimmed ?? "")) {
-            setIsEditingNotes(false);
-          }
-        },
-        onSettled: () => {
-          notesSaveInFlightRef.current = false;
-          const queued = queuedNotesSaveRef.current;
-          queuedNotesSaveRef.current = null;
-          if (queued && queued.gameId === game?.id) {
-            saveNotes(queued.value, queued.gameId);
-          }
-        },
-      }
-    );
-  };
-
   const hiddenMutation = useHiddenMutation({
     hiddenSuccessMessage: "Game hidden from library",
     unhiddenSuccessMessage: "Game unhidden",
@@ -1003,60 +960,6 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
           )}
         </div>
 
-        {/* Personal notes */}
-        <div className="mt-3">
-          {isMobile && !isEditingNotes ? (
-            // Mobile: notes start collapsed to a read-only preview so opening the sheet
-            // never lands focus on a text field and pops the on-screen keyboard.
-            // Tapping "Edit" is an explicit user gesture, so autofocus there is expected.
-            <div className="flex items-start justify-between gap-2">
-              <p className="flex-1 min-w-0 line-clamp-2 text-sm text-muted-foreground">
-                {notesValue.trim() || "No personal notes yet"}
-              </p>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 flex-shrink-0"
-                aria-label="Edit personal notes"
-                onClick={() => setIsEditingNotes(true)}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <Textarea
-              autoFocus={isMobile}
-              value={notesValue}
-              onChange={(e) => setNotesValue(e.target.value)}
-              onBlur={() => {
-                const trimmed = notesValue.trim() || null;
-                if (trimmed !== (game.notes ?? null)) {
-                  // saveNotes serializes this behind any already-in-flight
-                  // save, and its own onSuccess (above) only collapses the
-                  // mobile editor once the latest saved value matches what's
-                  // currently typed — a failed or superseded save leaves it
-                  // open instead of losing or misrepresenting the draft.
-                  saveNotes(trimmed);
-                } else if (isMobile) {
-                  setIsEditingNotes(false);
-                }
-              }}
-              placeholder="Personal notes..."
-              className="resize-none min-h-[56px] sm:min-h-[72px] text-sm"
-              maxLength={10000}
-              aria-label="Personal notes for this game"
-              // On mobile, keep the field editable through the save so the
-              // stale-save guard above is actually reachable — a disabled
-              // field would block the very typing it's meant to protect.
-              // Desktop keeps the pre-existing disable-while-saving behavior.
-              disabled={!isMobile && notesMutation.isPending}
-            />
-          )}
-          {notesMutation.isPending && (
-            <p className="text-xs text-muted-foreground mt-1">Saving...</p>
-          )}
-        </div>
-
         {/* Quick Actions */}
         <div className="flex gap-2 mt-3">
           <Tooltip>
@@ -1123,73 +1026,57 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
         className="flex-1 flex flex-col min-h-0 mt-4"
       >
         <TabsList className="flex-shrink-0 w-full justify-start overflow-x-auto">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="overview" aria-label="Overview" className="gap-1.5">
-                <Info className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Overview</span>
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Overview</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="downloads" aria-label="Downloads" className="gap-1.5">
-                <Download className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Downloads</span>
-                {gameDownloads.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
-                    {gameDownloads.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Downloads</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="media" aria-label="Media" className="gap-1.5">
-                <Image className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Media</span>
-                {game.screenshots && game.screenshots.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
-                    {game.screenshots.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Media</TooltipContent>
-          </Tooltip>
+          <GameTabTrigger
+            value="overview"
+            label="Overview"
+            icon={<Info className="h-3.5 w-3.5 sm:hidden" />}
+          />
           {!isDiscoveryId(game.id) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="files" aria-label="Files on disk" className="gap-1.5">
-                  <File className="h-3.5 w-3.5 sm:hidden" />
-                  <span className="hidden sm:inline">Files</span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">Files</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="journal"
+              label="Journal"
+              icon={<BookOpen className="h-3.5 w-3.5 sm:hidden" />}
+            />
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger value="links" aria-label="Links & Ratings" className="gap-1.5">
-                <Link className="h-3.5 w-3.5 sm:hidden" />
-                <span className="hidden sm:inline">Links &amp; Ratings</span>
-              </TabsTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="sm:hidden">Links &amp; Ratings</TooltipContent>
-          </Tooltip>
+          <GameTabTrigger
+            value="downloads"
+            label="Downloads"
+            icon={<Download className="h-3.5 w-3.5 sm:hidden" />}
+            count={gameDownloads.length}
+          />
+          <GameTabTrigger
+            value="media"
+            label="Media"
+            icon={<Image className="h-3.5 w-3.5 sm:hidden" />}
+            count={game.screenshots?.length}
+          />
+          {game.expansions && game.expansions.length > 0 && (
+            <GameTabTrigger
+              value="dlc"
+              label="DLC"
+              icon={<Layers className="h-3.5 w-3.5 sm:hidden" />}
+              count={game.expansions.length}
+            />
+          )}
+          {!isDiscoveryId(game.id) && (
+            <GameTabTrigger
+              value="files"
+              label="Files"
+              ariaLabel="Files on disk"
+              icon={<File className="h-3.5 w-3.5 sm:hidden" />}
+            />
+          )}
+          <GameTabTrigger
+            value="links"
+            label="Links & Ratings"
+            icon={<Link className="h-3.5 w-3.5 sm:hidden" />}
+          />
           {nexusDomain && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="mods" aria-label="Mods" className="gap-1.5">
-                  <NexusModsIcon className="h-3.5 w-3.5 text-amber-500 sm:mr-1" />
-                  <span className="hidden sm:inline">Mods</span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent className="sm:hidden">Mods</TooltipContent>
-            </Tooltip>
+            <GameTabTrigger
+              value="mods"
+              label="Mods"
+              icon={<NexusModsIcon className="h-3.5 w-3.5 text-amber-500 sm:mr-1" />}
+            />
           )}
         </TabsList>
 
@@ -1358,6 +1245,11 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
           </ScrollArea>
         </TabsContent>
 
+        {/* ── Journal tab (notes, milestones, achievements, screenshots) ── */}
+        <TabsContent value="journal" className="flex-1 min-h-0">
+          <GameJournalTab gameId={game.id} steamAppId={game.steamAppId ?? null} />
+        </TabsContent>
+
         {/* ── Downloads tab ── */}
         <TabsContent
           value="downloads"
@@ -1480,6 +1372,80 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
             </div>
           </ScrollArea>
         </TabsContent>
+
+        {/* ── DLC tab ── */}
+        {game.expansions && game.expansions.length > 0 && (
+          <TabsContent
+            value="dlc"
+            forceMount
+            className="flex-1 min-h-0 data-[state=inactive]:hidden"
+          >
+            <ScrollArea className="h-full">
+              <div className="pr-4 pb-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {game.expansions.map((expansion) => {
+                    const content = (
+                      <>
+                        <div className="w-full aspect-[3/4] bg-muted overflow-hidden">
+                          {expansion.coverUrl ? (
+                            <img
+                              src={expansion.coverUrl}
+                              alt={expansion.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Layers className="w-8 h-8 text-muted-foreground opacity-40" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2.5 space-y-1">
+                          <p className="text-sm font-medium truncate" title={expansion.name}>
+                            {expansion.name}
+                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            {expansion.releaseDate ? (
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(expansion.releaseDate).getFullYear()}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            <Badge variant="secondary" className="px-1.5 py-0 text-xs capitalize">
+                              {EXPANSION_CATEGORY_LABELS[expansion.category] ?? expansion.category}
+                            </Badge>
+                          </div>
+                        </div>
+                      </>
+                    );
+                    const className =
+                      "shadcn-card overflow-hidden rounded-xl border bg-card border-card-border text-card-foreground shadow-sm block";
+                    return expansion.igdbUrl ? (
+                      <a
+                        key={expansion.id}
+                        href={safeUrl(expansion.igdbUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(className, "hover-elevate cursor-pointer")}
+                        data-testid={`dlc-${expansion.id}`}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <div
+                        key={expansion.id}
+                        className={className}
+                        data-testid={`dlc-${expansion.id}`}
+                      >
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        )}
 
         {/* ── Files tab ── */}
         <TabsContent

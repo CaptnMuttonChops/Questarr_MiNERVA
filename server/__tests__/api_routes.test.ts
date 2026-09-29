@@ -1030,28 +1030,6 @@ describe("API Routes - Extended Coverage", () => {
     });
   });
 
-  describe("PATCH /api/games/:id/notes", () => {
-    const gameId = "123e4567-e89b-12d3-a456-426614174000";
-
-    it("should update notes", async () => {
-      const updatedGame = { id: gameId, notes: "Great game" };
-      vi.mocked(storage.updateGameNotes).mockResolvedValue(updatedGame as unknown as Game);
-
-      const response = await request(app)
-        .patch(`/api/games/${gameId}/notes`)
-        .send({ notes: "Great game" });
-      expect(response.status).toBe(200);
-    });
-
-    it("should return 400 for a non-string notes value (fails schema, not sanitizer)", async () => {
-      const response = await request(app)
-        .patch(`/api/games/${gameId}/notes`)
-        .send({ notes: 12345 });
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Invalid notes data");
-    });
-  });
-
   describe("PATCH /api/games/:id/target-platform", () => {
     const gameId = "123e4567-e89b-12d3-a456-426614174000";
 
@@ -2929,6 +2907,77 @@ describe("API Routes - Extended Coverage", () => {
       expect(response.status).toBe(200);
       expect(response.body.items).toHaveLength(1);
       expect(storage.getReleaseBlacklistSet).not.toHaveBeenCalled();
+    });
+
+    it("should apply the global release-name blacklist without a gameId", async () => {
+      vi.mocked(storage.getUserSettings).mockResolvedValue({
+        releaseNameBlacklist: '["hypervisor"]',
+      } as any);
+      vi.mocked(searchAllIndexers).mockResolvedValue({
+        items: [
+          {
+            title: "Test Game-HYPERVISOR",
+            link: "http://example.com/1",
+            downloadType: "torrent" as const,
+          },
+          {
+            title: "Test Game-CODEX",
+            link: "http://example.com/2",
+            downloadType: "torrent" as const,
+          },
+        ],
+        total: 2,
+        errors: [],
+      });
+
+      const response = await request(app).get("/api/search?query=Test+Game");
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toHaveLength(1);
+      expect(response.body.items[0].title).toBe("Test Game-CODEX");
+      expect(response.body.blacklistedCount).toBe(1);
+      expect(storage.getReleaseBlacklistSet).not.toHaveBeenCalled();
+    });
+
+    it("should combine the global and per-game blacklists", async () => {
+      vi.mocked(storage.getUserSettings).mockResolvedValue({
+        releaseNameBlacklist: '["HYPERVISOR"]',
+      } as any);
+      vi.mocked(storage.getGame).mockResolvedValue({
+        id: "game-1",
+        userId: "user-1",
+        title: "Test Game",
+      } as any);
+      vi.mocked(storage.getReleaseBlacklistSet).mockResolvedValue(new Set(["Test Game-SKIDROW"]));
+      vi.mocked(searchAllIndexers).mockResolvedValue({
+        items: [
+          {
+            title: "Test Game-hypervisor",
+            link: "http://example.com/1",
+            downloadType: "torrent" as const,
+          },
+          {
+            title: "Test Game-SKIDROW",
+            link: "http://example.com/2",
+            downloadType: "torrent" as const,
+          },
+          {
+            title: "Test Game-CODEX",
+            link: "http://example.com/3",
+            downloadType: "torrent" as const,
+          },
+        ],
+        total: 3,
+        errors: [],
+      });
+
+      const response = await request(app).get("/api/search?query=Test+Game&gameId=game-1");
+
+      expect(response.status).toBe(200);
+      expect(response.body.items.map((i: { title: string }) => i.title)).toEqual([
+        "Test Game-CODEX",
+      ]);
+      expect(response.body.blacklistedCount).toBe(2);
     });
   });
 

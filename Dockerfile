@@ -2,12 +2,17 @@
 FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS base
 WORKDIR /app
 
+# apk upgrade picks up Alpine's latest patched packages for this branch (e.g. openssl,
+# expat pulled in transitively by python3) without moving off the pinned base image
+# digest — the digest still fixes the OS/Node version, apk upgrade only refreshes
+# point-release security fixes within it.
 # better-sqlite3 bundles a prebuilt binary for this platform, so no C++
 # compilation ever happens, but npm's implicit `node-gyp rebuild` still runs
 # unconditionally on install (before it evaluates the prebuild and no-ops the
 # actual build), and node-gyp's configure step is Python-based, so Python and
 # a toolchain remain required regardless.
-RUN apk add --no-cache g++ make python3
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache g++ make python3
 
 COPY package*.json ./
 RUN npm ci --ignore-scripts
@@ -38,9 +43,15 @@ ENV UMASK=022
 # regardless of the executable bit — see ArchiveService.ts), gcompat (glibc compatibility
 # shim, needed below to run RARLAB's official unrar binary), curl (to fetch that binary
 # with strict HTTPS enforcement, see below), and Python + Apprise for local CLI
-# notifications.
-RUN apk add --no-cache 7zip curl gcompat py3-pip python3 shadow su-exec && \
-    python3 -m pip install --no-cache-dir --break-system-packages --only-binary :all: apprise==1.9.4
+# notifications. apk upgrade first refreshes patched OS packages within this pinned
+# Alpine branch, same as the base stage. Apprise and its dependencies are hash-pinned in
+# requirements/apprise.txt.
+COPY requirements/apprise.txt /tmp/requirements-apprise.txt
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache 7zip curl gcompat py3-pip python3 shadow su-exec && \
+    python3 -m pip install --no-cache-dir --break-system-packages --only-binary :all: \
+      --require-hashes -r /tmp/requirements-apprise.txt && \
+    rm /tmp/requirements-apprise.txt
 
 # Fetch RARLAB's official unrar binary for RAR extraction (legacy and RAR5, including
 # multi-volume sets). Alpine dropped its own `unrar` package because RARLAB's license
@@ -66,7 +77,13 @@ RUN curl -fsSL --proto '=https' --tlsv1.2 -o /tmp/unrar.tar.gz \
 COPY --from=base /app/node_modules ./node_modules
 COPY package*.json ./
 
-RUN npm prune --omit=dev
+# Once pruned, the base image's global npm CLI (with its own bundled node_modules, e.g.
+# tar, ip-address, brace-expansion) isn't needed at runtime: CMD below execs node
+# directly. Removing it drops those bundled copies from the shipped image instead of
+# carrying whatever versions happened to be vendored into this Node release's npm.
+RUN npm prune --omit=dev && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+      /usr/local/bin/corepack /usr/local/lib/node_modules/corepack
 
 # Copy necessary files from build stage
 COPY --from=builder /app/dist ./dist
@@ -95,8 +112,10 @@ EXPOSE 5000
 # entrypoint.sh's final line).
 # nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint -- see comment above
 ENTRYPOINT ["/entrypoint.sh"]
+# Invoke node directly (same entry point "npm run start" resolves to) rather than
+# through npm, which is removed above.
 # nosemgrep: dockerfile.security.missing-user.missing-user -- entrypoint.sh drops to the unprivileged questarr user via su-exec before this CMD ever runs
-CMD ["npm", "run", "start"]
+CMD ["node", "dist/server/index.js"]
 
 LABEL org.opencontainers.image.title="Questarr"
 LABEL org.opencontainers.image.description="Questarr is a smart game library manager that automates discovery and downloads, inspired by the *Arr ecosystem."

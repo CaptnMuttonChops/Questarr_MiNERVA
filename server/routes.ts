@@ -13,7 +13,6 @@ import {
   updateGameStatusSchema,
   updateGameHiddenSchema,
   updateGameUserRatingSchema,
-  updateGameNotesSchema,
   updateGameTargetPlatformSchema,
   insertIndexerSchema,
   insertDownloaderSchema,
@@ -127,6 +126,47 @@ import { readLastLogLines } from "./log-file.js";
 // Root directory for the file system browser; restrict browsing to this tree
 const FILE_BROWSER_ROOT = fs.realpathSync(process.cwd());
 
+/**
+ * Resolves a user-supplied path against FILE_BROWSER_ROOT, following symlinks, and
+ * returns the canonical path only if it stays inside the root (null otherwise). For a
+ * path that doesn't fully exist yet, the nearest existing ancestor is canonicalized and
+ * the missing components re-appended, so a symlinked directory anywhere along the way
+ * can't point a not-yet-created file outside the root.
+ */
+async function resolveCanonicalWithinFileBrowserRoot(input: string): Promise<string | null> {
+  const resolved = path.resolve(FILE_BROWSER_ROOT, input);
+  // Lexical check first, inline and gating the realpath() below, so CodeQL's
+  // path-injection analysis sees the filesystem call as guarded.
+  const lexical = path.relative(FILE_BROWSER_ROOT, resolved);
+  if (lexical === ".." || lexical.startsWith(".." + path.sep) || path.isAbsolute(lexical)) {
+    return null;
+  }
+
+  // Walk up to the nearest existing ancestor, remembering the missing components.
+  const missing: string[] = [];
+  let existing = resolved;
+  let canonicalBase: string | null = null;
+  while (canonicalBase === null) {
+    try {
+      canonicalBase = await fs.promises.realpath(existing);
+    } catch (error) {
+      const parent = path.dirname(existing);
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" || parent === existing) throw error;
+      missing.unshift(path.basename(existing));
+      existing = parent;
+    }
+  }
+
+  // Containment re-checked inline on the canonical path (not via a helper) so CodeQL
+  // sees the value handed to validateCertFiles() as guarded.
+  const canonical = path.join(canonicalBase, ...missing);
+  const relative = path.relative(FILE_BROWSER_ROOT, canonical);
+  if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+    return null;
+  }
+  return canonical;
+}
+
 type IgdbConfigSource = "env" | "database" | undefined;
 
 interface IgdbConfigStatus {
@@ -222,7 +262,12 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
-import { searchAllIndexers, filterBlacklistedReleases, enrichWithAiAnalysis } from "./search.js";
+import {
+  searchAllIndexers,
+  filterBlacklistedReleases,
+  filterByReleaseNameBlacklist,
+  enrichWithAiAnalysis,
+} from "./search.js";
 import { xrelClient, DEFAULT_XREL_BASE, ALLOWED_XREL_DOMAINS } from "./xrel.js";
 import {
   normalizeTitle,
@@ -230,6 +275,7 @@ import {
   releaseMatchesGame,
   parseReleaseMetadata,
   matchesPlatformFilter,
+  parseJsonStringArray,
 } from "../shared/title-utils.js";
 import { categorizeDownload, type DownloadCategory } from "../shared/download-categorizer.js";
 import { SUPPORT_WORKER_ORIGIN } from "../shared/support-config.js";
@@ -237,6 +283,7 @@ import type { XrelGameStatus } from "../shared/xrel-types.js";
 import { ZipArchive } from "archiver";
 import helmet from "helmet";
 import { steamRoutes } from "./steam-routes.js";
+import { gameJournalRoutes, screenshotDirForGame } from "./game-journal-routes.js";
 import {
   getContentFilterFlags,
   isContentFiltered,
@@ -567,7 +614,11 @@ async function saveIgdbCredentialsIfProvided(
   return null;
 }
 
-// Helper function for aggregated indexer search
+/**
+ * Handles an aggregated indexer search request. Results are filtered by the requesting user's
+ * global release-name blacklist and, when a gameId is given, that game's blacklist, before AI
+ * enrichment. A canonical game-title search also refreshes the game's availability badge.
+ */
 async function handleAggregatedIndexerSearch(req: Request, res: Response) {
   try {
     const { query, category, cat } = req.query;
@@ -593,19 +644,23 @@ async function handleAggregatedIndexerSearch(req: Request, res: Response) {
       offset,
     });
 
-    // Filter out blacklisted releases when a gameId context is provided
+    // Global release-name blacklist (case-insensitive substring match) applies to every
+    // search regardless of gameId, so it's resolved and applied up front.
     const gameId = req.query.gameId as string | undefined;
     let filteredItems = items;
-    let blacklistedCount = 0;
+    let userSettings: Awaited<ReturnType<typeof storage.getUserSettings>> | undefined;
+    if (req.user) {
+      userSettings = await storage.getUserSettings(req.user.id);
+      const blacklistTerms = parseJsonStringArray(userSettings?.releaseNameBlacklist);
+      filteredItems = filterByReleaseNameBlacklist(items, blacklistTerms);
+    }
+
+    // Filter out per-game blacklisted releases when a gameId context is provided
     if (gameId && req.user) {
       const game = await storage.getGame(gameId);
       if (game && game.userId === req.user.id) {
-        const [blacklisted, userSettings] = await Promise.all([
-          storage.getReleaseBlacklistSet(gameId),
-          storage.getUserSettings(req.user.id),
-        ]);
-        filteredItems = filterBlacklistedReleases(items, blacklisted);
-        blacklistedCount = items.length - filteredItems.length;
+        const blacklisted = await storage.getReleaseBlacklistSet(gameId);
+        filteredItems = filterBlacklistedReleases(filteredItems, blacklisted);
 
         // Update the "has results" flag only for canonical game-title searches so that
         // partial/custom user-typed queries in the download dialog don't flip the badge
@@ -626,6 +681,7 @@ async function handleAggregatedIndexerSearch(req: Request, res: Response) {
       }
     }
 
+    const blacklistedCount = items.length - filteredItems.length;
     const enrichedItems = await enrichWithAiAnalysis(filteredItems);
 
     return res.json({
@@ -798,6 +854,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "data:",
             "https://images.igdb.com",
             "https://staticdelivery.nexusmods.com",
+            // Steam achievement icons (GetSchemaForGame), served from Steam's CDN
+            "https://steamcdn-a.akamaihd.net",
+            "https://cdn.akamai.steamstatic.com",
+            "https://shared.cloudflare.steamstatic.com",
           ],
           "connect-src": connectSrc,
           // Narrower than helmet's defaults (which allow any "https:" origin): fonts and
@@ -838,6 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Use Steam Routes
   app.use(steamRoutes);
+  app.use(gameJournalRoutes);
   // Use PCGamingWiki Routes
   app.use(pcgamingwikiRouter);
 
@@ -1152,33 +1213,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid 'enabled' value" });
       if (typeof port !== "number") return res.status(400).json({ error: "Invalid 'port' value" });
 
-      // Security check for file paths
+      if (
+        (certPath !== undefined && typeof certPath !== "string") ||
+        (keyPath !== undefined && typeof keyPath !== "string")
+      ) {
+        return res.status(400).json({ error: "Invalid certificate or key path" });
+      }
+
+      // Security check for file paths: canonical (symlink-resolved) and inside the root.
       let resolvedCertPath: string | undefined = certPath;
       let resolvedKeyPath: string | undefined = keyPath;
-      if (certPath || keyPath) {
-        const normalizedRoot = FILE_BROWSER_ROOT.endsWith(path.sep)
-          ? FILE_BROWSER_ROOT
-          : FILE_BROWSER_ROOT + path.sep;
-
-        if (certPath) {
-          resolvedCertPath = path.resolve(FILE_BROWSER_ROOT, certPath);
-          if (!resolvedCertPath.startsWith(normalizedRoot)) {
-            return res.status(403).json({ error: "Access to cert path is not allowed" });
-          }
+      if (certPath) {
+        const canonical = await resolveCanonicalWithinFileBrowserRoot(certPath);
+        if (!canonical) {
+          return res.status(403).json({ error: "Access to cert path is not allowed" });
         }
-        if (keyPath) {
-          resolvedKeyPath = path.resolve(FILE_BROWSER_ROOT, keyPath);
-          if (!resolvedKeyPath.startsWith(normalizedRoot)) {
-            return res.status(403).json({ error: "Access to key path is not allowed" });
-          }
+        resolvedCertPath = canonical;
+      }
+      if (keyPath) {
+        const canonical = await resolveCanonicalWithinFileBrowserRoot(keyPath);
+        if (!canonical) {
+          return res.status(403).json({ error: "Access to key path is not allowed" });
         }
+        resolvedKeyPath = canonical;
       }
 
       // Validate if enabling SSL
       if (enabled) {
         if (certPath && keyPath) {
+          // Validate the same canonical paths that were checked above and get saved below.
           const { validateCertFiles } = await import("./ssl.js"); // Dynamic import to avoid circular deps if any
-          const { valid, error } = await validateCertFiles(certPath, keyPath);
+          const { valid, error } = await validateCertFiles(
+            resolvedCertPath as string,
+            resolvedKeyPath as string
+          );
           if (!valid) {
             return res.status(400).json({ error: `Invalid SSL configuration: ${error}` });
           }
@@ -1188,8 +1256,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // But simpler to just require them if they are changing.
           // If they are missing in body, let's look up current config
           const current = configLoader.getSslConfig();
-          const effectiveCert = certPath || current.certPath;
-          const effectiveKey = keyPath || current.keyPath;
+          // current.certPath/keyPath were already root-contained when they were saved,
+          // so only the newly supplied (resolved) values need the same treatment here.
+          const effectiveCert = certPath ? resolvedCertPath : current.certPath;
+          const effectiveKey = keyPath ? resolvedKeyPath : current.keyPath;
 
           if (!effectiveCert || !effectiveKey) {
             return res
@@ -1365,6 +1435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Resolve against the root and normalize
+        // nosemgrep: javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal -- result is checked against FILE_BROWSER_ROOT below, both lexically and again after realpath(), before any filesystem read
         const resolvedPath = path.resolve(FILE_BROWSER_ROOT, queryPath);
 
         const normalizedRoot = FILE_BROWSER_ROOT.endsWith(path.sep)
@@ -1791,34 +1862,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Update personal notes (freeform text, max 10,000 chars, or null to clear)
-  app.patch(
-    "/api/games/:id/notes",
-    sensitiveEndpointLimiter,
-    sanitizeGameId,
-    validateRequest,
-    async (req: Request, res: Response) => {
-      try {
-        const { id } = req.params as { id: string };
-        const userId = req.user!.id;
-        const { notes } = updateGameNotesSchema.parse(req.body);
-
-        const updatedGame = await storage.updateGameNotes(id, userId, notes);
-        if (!updatedGame) {
-          return res.status(404).json({ error: "Game not found" });
-        }
-
-        return res.json(updatedGame);
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          return respondWithZodError(res, error, "Invalid notes data");
-        }
-        routesLogger.error({ error }, "error updating game notes");
-        return res.status(500).json({ error: "Failed to update notes" });
-      }
-    }
-  );
-
   // Update the per-game download target, or clear it to use the account default.
   app.patch(
     "/api/games/:id/target-platform",
@@ -1848,6 +1891,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  const gameExpansionSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    coverUrl: z.string(),
+    releaseDate: z.string(),
+    category: z.enum(["main", "update", "dlc", "extra", "packs"]),
+    gameType: z.number().optional(),
+    igdbUrl: z.string().optional(),
+  });
 
   // Refresh metadata for all games
   app.post("/api/games/refresh-metadata", igdbRateLimiter, async (req, res) => {
@@ -1904,6 +1957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     .array(z.object({ url: z.string(), category: z.number() }))
                     .catch([])
                     .parse(updatedData.igdbWebsites),
+                  expansions: gameExpansionSchema.array().catch([]).parse(updatedData.expansions),
                   aggregatedRating: (updatedData.aggregatedRating as number | undefined) ?? null,
                 },
               });
@@ -2321,6 +2375,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!success) {
           return res.status(404).json({ error: "Game not found" });
         }
+
+        // Journal screenshots aren't part of the library/download files handled
+        // above -- clean up their directory separately so they don't linger on
+        // disk after the game (and its DB rows, via ON DELETE cascade) is gone.
+        await fs.promises
+          .rm(screenshotDirForGame(id), { recursive: true, force: true })
+          .catch((error) => {
+            routesLogger.warn({ error, gameId: id }, "Failed to remove screenshot directory");
+          });
 
         return res.status(200).json({ success: true, fileDeletion });
       } catch (error) {
@@ -4282,7 +4345,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 archive.append(Buffer.from(buffer), { name: filename });
               }
             } catch (error) {
-              console.error(`Error adding ${download.title} to bundle:`, error);
+              // download.title is user/indexer-controlled; keep it out of the format-string
+              // position (console.error runs util.format on its first argument, so a title
+              // containing "%s" etc. would otherwise consume `error` as a substitution).
+              console.error("Error adding to bundle:", download.title, error);
             }
           })
         );
@@ -4557,6 +4623,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       routesLogger.error({ error }, "Failed to fetch Discord settings");
       res.status(500).json({ error: "Failed to fetch Discord settings" });
     }
+  });
+
+  // Exposes only whether a Steam Web API key is configured server-side, so the
+  // client can conditionally show the achievements section in the game details
+  // Journal tab without ever seeing the key itself.
+  app.get("/api/settings/steam", sensitiveEndpointLimiter, async (_req, res) => {
+    res.json({ apiKeyConfigured: appConfig.steam.isConfigured });
   });
 
   app.post("/api/settings/discord", sensitiveEndpointLimiter, async (req, res) => {

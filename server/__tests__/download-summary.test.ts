@@ -192,6 +192,7 @@ vi.mock("../steam-routes.js", () => ({
 
 vi.mock("../search.js", () => ({
   searchAllIndexers: vi.fn().mockResolvedValue({ items: [], total: 0, errors: [] }),
+  filterByReleaseNameBlacklist: (items: unknown[]) => items,
 }));
 
 vi.mock("../igdb.js", () => ({

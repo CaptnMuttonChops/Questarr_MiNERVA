@@ -425,6 +425,27 @@ describe("TorznabClient — download link rewriting", () => {
   });
 });
 
+describe("TorznabClient — title normalization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("collapses whitespace in titles scraped from a results-table row", async () => {
+    const xml = makeTorznabXml("https://indexer.example.com/dl/1.torrent").replace(
+      "<title>Some Game</title>",
+      "<title>Gunman Contracts - Stand Alone\n            \n      ANB_Seth\n   \n   8.67 ГБ\n</title>"
+    );
+    mockFetchResponse(xml);
+
+    const result = await new TorznabClient().searchGames(
+      makeIndexer({ url: "https://indexer.example.com/api" }),
+      { query: "gunman" }
+    );
+
+    expect(result.items[0].title).toBe("Gunman Contracts - Stand Alone ANB_Seth 8.67 ГБ");
+  });
+});
+
 describe("TorznabClient — searchGames error wrapping", () => {
   let client: InstanceType<typeof TorznabClient>;
 

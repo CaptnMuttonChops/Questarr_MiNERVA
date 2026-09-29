@@ -1174,9 +1174,6 @@ export default function SettingsPage() {
     );
   }
 
-  // Content Filtering governs both display (what shows in the library/UI) and
-  // discovery (what search/discover surface), so the same card is rendered in
-  // both the Appearance and Discovery & Downloads tabs.
   const contentFilteringCard = (
     <SettingsFilterCard
       icon={EyeOff}
@@ -1573,8 +1570,6 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
-
-            {contentFilteringCard}
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">

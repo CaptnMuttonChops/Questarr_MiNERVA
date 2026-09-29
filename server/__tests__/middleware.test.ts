@@ -472,6 +472,39 @@ describe("Middleware - Input Sanitization", () => {
   });
 
   describe("sanitizeDownloaderDownloadData", () => {
+    it("collapses a multi-line scraped indexer title instead of rejecting it", async () => {
+      const padding = "\n" + " ".repeat(40);
+      const scrapedTitle = [
+        "Gunman Contracts - Stand Alone",
+        "ANB_Seth",
+        "Рейтинг",
+        "0.0",
+        "2026",
+        "v Build 25234835",
+        "8.67 ГБ",
+        "Открыть игру [2026]",
+      ].join(padding.repeat(4));
+      expect(scrapedTitle.length).toBeGreaterThan(500);
+
+      const req = createMockRequest({
+        body: { url: "magnet:?xt=urn:btih:abc", title: scrapedTitle },
+      });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      for (const validator of sanitizeDownloaderDownloadData) {
+        await validator(req as Request, res as Response, next);
+      }
+
+      validateRequest(req as Request, res as Response, next);
+
+      expect(res.status).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalled();
+      expect(req.body.title).toBe(
+        "Gunman Contracts - Stand Alone ANB_Seth Рейтинг 0.0 2026 v Build 25234835 8.67 ГБ Открыть игру [2026]"
+      );
+    });
+
     it("should allow valid download data", async () => {
       const validDownloadData = {
         url: "https://example.com/file.zip",

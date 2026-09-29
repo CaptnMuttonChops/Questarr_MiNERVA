@@ -6,6 +6,7 @@ import {
   indexerAllowsApiKey,
   resolveSearchCategories,
 } from "./indexer-caps.js";
+import { normalizeReleaseTitle } from "../shared/title-utils.js";
 import { routesLogger } from "./logger.js";
 import { isSafeUrl, safeFetch } from "./ssrf.js";
 
@@ -212,7 +213,7 @@ class NewznabClient {
           );
 
           results.push({
-            title: item.title,
+            title: normalizeReleaseTitle(item.title),
             link: item.link || item.enclosure?.["@_url"],
             size,
             publishDate: item.pubDate,

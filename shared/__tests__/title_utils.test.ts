@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeTitle,
+  normalizeReleaseTitle,
   cleanReleaseName,
   titleMatches,
   releaseMatchesGame,
@@ -14,6 +15,24 @@ import {
 } from "../title-utils.js";
 
 describe("title-utils", () => {
+  describe("normalizeReleaseTitle", () => {
+    it("collapses newlines and repeated spaces into single spaces", () => {
+      expect(normalizeReleaseTitle("  Game - Stand Alone\n      \n  ANB_Seth\t 8.67 ГБ  ")).toBe(
+        "Game - Stand Alone ANB_Seth 8.67 ГБ"
+      );
+    });
+
+    it("keeps scene release names intact", () => {
+      expect(normalizeReleaseTitle("Game.Name.v1.2-GROUP")).toBe("Game.Name.v1.2-GROUP");
+    });
+
+    it("stringifies numeric titles and maps missing ones to an empty string", () => {
+      expect(normalizeReleaseTitle(2026)).toBe("2026");
+      expect(normalizeReleaseTitle(undefined)).toBe("");
+      expect(normalizeReleaseTitle(null)).toBe("");
+    });
+  });
+
   describe("normalizeTitle", () => {
     it("should normalize titles correctly", () => {
       expect(normalizeTitle("The Witcher 3: Wild Hunt")).toBe("the witcher 3 wild hunt");

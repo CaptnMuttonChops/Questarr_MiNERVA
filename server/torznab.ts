@@ -8,6 +8,7 @@ import {
 import { torznabLogger } from "./logger.js";
 import { isPrivateNetworkAddress, isSafeUrl, safeFetch } from "./ssrf.js";
 import { XMLParser } from "fast-xml-parser";
+import { normalizeReleaseTitle } from "../shared/title-utils.js";
 
 interface TorznabItem {
   title: string;
@@ -396,7 +397,7 @@ export class TorznabClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private parseItem(item: any, indexerUrl: string, indexer?: Indexer): TorznabItem {
     const torznabItem: TorznabItem = {
-      title: item.title || "Unknown",
+      title: normalizeReleaseTitle(item.title) || "Unknown",
       link: item.link || item.guid || "",
       pubDate: item.pubDate || new Date().toISOString(),
       description: item.description,

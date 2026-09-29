@@ -3,6 +3,7 @@ import { body, param, query, validationResult } from "express-validator";
 import type { Request, Response, NextFunction } from "express";
 import { TORRENT_DOWNLOADER_TYPES, USENET_DOWNLOADER_TYPES } from "../shared/downloader-types.js";
 import { GAME_STATUSES } from "../shared/schema.js";
+import { normalizeReleaseTitle } from "../shared/title-utils.js";
 import { storage } from "./storage.js";
 import { expressLogger } from "./logger.js";
 import { reportServerError } from "./error-telemetry.js";
@@ -469,7 +470,9 @@ export const sanitizeDownloaderDownloadData = [
     })
     .withMessage("Invalid download URL"),
   body("title")
-    .trim()
+    // Collapse whitespace runs first: results cached from before the indexer-side
+    // normalization can still carry a multi-line scraped title.
+    .customSanitizer(normalizeReleaseTitle)
     .isLength({ min: 1, max: 500 })
     .withMessage("Title must be between 1 and 500 characters"),
   body("category")

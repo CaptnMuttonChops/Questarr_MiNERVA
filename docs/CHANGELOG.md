@@ -4,20 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [1.5.0] - 2026-09-xx
 
-Addresses dependency vulnerabilities flagged by `npm audit`.
-
-### Removed
-
-- **Legacy PostgreSQL migration tooling**: removed `scripts/pg-to-sqlite.ts` and
-  `docker-compose.migrate.yml`. The tool dated from the v1.1 move off PostgreSQL
-  and only knew about 8 of the project's 19 tables, so pointing it at a current
-  database would have silently skipped the rest — and it continued past
-  per-table failures while still reporting `Migration completed.` Operators
-  still migrating a pre-v1.1 PostgreSQL installation should use the archived
-  **v1.4.2** release — see [MIGRATION.md](./MIGRATION.md), which now inlines the
-  pinned compose file, links the sources by tag permalink, and spells out how to
-  verify the result.
-
 ### Added
 
 #### Library & Discovery
@@ -26,7 +12,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **Platforms setting**: one Settings > Platforms list to always only see your platform of choice by default across Library, Discover, Add Game, and download search (#1018, #1104).
 - **Per-game target platforms** for automatic downloads (#1048).
 - **Platform and release year filters** on game search (#897).
-- **Library filters**: added optional filters to hide shelved games and games already owned from search/discover results (#1089).
+- **Library filters**: added filters to hide shelved games and games already owned from search/discover results (#1089).
 - **"Playing" status** for games (#1043), with a dedicated **Playing** page — journal notes, a milestones checklist, screenshots, and Steam achievements per game (#1080).
 - **Crack status** section on the game detail page (#1012, #1062).
 - **Time to Beat** via IGDB's official endpoint (#1063).
@@ -35,24 +21,24 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **xREL**: surfaces a release's nuke reason with a "Nuked" badge (#948).
 - **Screenshot lightbox**: carousel navigation with arrow-key and swipe support, plus an image counter (#804).
 - **Wishlist**: configurable grid column count (#871).
-- **Content filtering**: optional filters to hide erotic and age-restricted (ESRB AO / PEGI 18) games from the library, search, and discovery pages (#808).
-- **Windows 2000 style mode**: an optional retro cosmetic theme, alongside the existing Ghost Mode (#807).
-- **Sidebar**: moved the xREL and RSS pages under Discover (#1086). Wishlist moved from a top-level link into a new collapsible Library group alongside Playing; on mobile, Playing replaced Wishlist in the pinned bottom-nav slots (Wishlist stays reachable via "More") (#1080).
+- **Content filtering**: filters to hide erotic and age-restricted (ESRB AO / PEGI 18) games from the library, search, and discovery pages (#808).
+- **Windows 2000 style mode**: a retro cosmetic theme (#807).
+- **Sidebar**: moved the xREL and RSS pages under Discover (#1086). Wishlist moved into Library group alongside Playing; on mobile, Playing replaced Wishlist in the pinned bottom-nav slots (Wishlist stays reachable via "More") (#1080).
 
 #### Downloads & Import
 
-- **AI release analysis (TypeSafe/Jev)**: auto-download now runs an AI legitimacy check and holds a suspicious match for manual review (notified over Apprise) instead of downloading it. Fails open if the check itself errors (#1070, #1077, #1078).
+- **AI release analysis (TypeSafe/Jev)**: [OPTIONAL/BYOK] auto-download can run an AI legitimacy check and hold a suspicious match for manual review (notified over Apprise) instead of downloading it (#1070, #1077, #1078). Uses Jev model from TypeSafe via OpenRouter, with your own API key. [Learn about Jev]([url](https://share.gemini.google/lrbViMx1ndNB))
 - **Packs/Addons** download category (#876).
 - **Password-protected archives** are now routed to manual review with a password prompt, instead of failing (#1033).
 - **SABnzbd**: archive password support for G4U-style releases (#962).
-- **Pre-import security scanning**: optional VirusTotal (hash lookup) and ClamAV (local deep scan) checks before a download is unpacked or moved into the library; a detection quarantines the download and raises a Security Alert notification instead of importing it (#1102).
+- **Pre-import security scanning**: [OPTIONAL] VirusTotal (hash lookup) and ClamAV (local deep scan) checks before a download is unpacked or moved into the library; a detection quarantines the download and raises a Security Alert notification instead of importing it (#1102).
 - **Pending imports**: orphaned downloads (missing game record) get a dedicated "Link Game" action to reattach them instead of stalling silently (#932).
 - **Download search**: results now link back to their indexer/source page (#872).
 
 #### Integrations
 
-- **Optional PostgreSQL backend**: Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md`.
-- **Playnite integration**: API keys, an integration API, and a Playnite extension — see [the extension's README](../extensions/playnite-questarr/README.md) for setup (#986).
+- **PostgreSQL backend**: [OPTIONAL] Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md` if you're looking to migrate from SQLite.
+- **Playnite integration**: API keys, an integration API, and a Playnite extension. See [the extension's README](../extensions/playnite-questarr/README.md) for setup (#986).
 - **Steam wishlist**: optional auto-sync on a configurable interval, alongside the existing manual sync (#805).
 
 #### Deployment & Admin
@@ -61,7 +47,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **Reverse proxy subdirectory deployments**: `QUESTARR_BASE_PATH` is now a runtime server config (no rebuild needed) for serving Questarr behind a path prefix; see `docs/REVERSE_PROXY.md` (#844).
 - **`/api/status`**: new dashboard endpoint (#984).
 - **Debug logging**: optional logging of full downloader responses (#927).
-- **Telemetry**: optional automatic reporting of unhandled server errors (#924).
+- **Telemetry**: [OPTIONAL] automatic reporting of unhandled server errors (#924). This uses the same function as the "Send Logs" button in the logs page and allows maintainers to proactively analyze errors not necessarily raised by users.
 - **Password reset**: `npm run reset-password` CLI script for a forgotten admin password (#860).
 
 ### Fixed
@@ -78,7 +64,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **Nintendo Switch**: fixed silent import failures for NSP/XCI releases (#1021).
 - **Archive extraction**: RAR archives silently produced empty output instead of failing loudly; routed through a working extractor, ending on Alpine-native 7-Zip plus RARLAB's official `unrar` binary for reliable RAR/multi-volume support (#803). Archives now unpack at the destination instead of the downloader directory, with hardened multi-volume (`.partN.rar`, `.7z.NNN`) sibling detection (#1049). A large/slow extraction could also be re-triggered mid-unpack by the next status check, clobbering itself (#1014).
 
-#### Downloaders & Indexers
+#### Downloaders & Indexers, Integrations
 
 - **qBittorrent**: v5+ downloads not tracked when the API returns an async `pending_count`; v5.2+ torrent-upload success not recognized; a fallback for v2.0.2 (#1015, #926, #869).
 - **Prowlarr**: download links no longer double-wrapped when the proxy URL comes back on a container IP (#1007).
@@ -91,7 +77,7 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 #### Documentation
 
 - **`docs/SECRETS.md`** §8 wrongly said the `pg-to-sqlite` credential-logging issue was still open; it was fixed in v1.4.0. Now states the affected range (v1.1.0–v1.3.1) and that operators who kept logs from that range should rotate their Postgres password.
-- **Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s own example commands (#1084).
+- **v1.1 Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s own example commands (#1084).
 
 #### UI & Misc
 
@@ -148,8 +134,8 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 #### Dependency Vulnerabilities
 
 - Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
-- Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).
-- Fixed a critical IP-spoofing vulnerability in `proxy-addr`, flagged by Aikido Intel.
+- Fixed 3 additional known vulnerabilities in `qs` and `js-yaml` (#997).
+- Fixed a critical IP-spoofing vulnerability in `proxy-addr`.
 
 ### Vulnerabilities Addressed
 
@@ -161,20 +147,41 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
 - **qs** (npm `overrides` pin) 6.15.2 → 6.16.0 — fixes GHSA-4mjr-xmp4-gh2g (MODERATE) — DoS via attacker-controlled `isBuffer`, vulnerable range `>=2.2.5 <6.16.0` — and GHSA-x5fp-wj9c-mxmx (MODERATE) — array-limit bypass via bracket-key comma parsing, vulnerable range `>=6.14.2 <=6.15.3`. Reaches production via `express`/`body-parser`, both of which pin `qs: ~6.15.1` (a range that otherwise excludes the fix); the same override also closes the gap in `openid`, `steam-web`, and `superagent` (#997).
 - **js-yaml** (npm `overrides` pin, dev-only, scoped to `@eslint/eslintrc`) 4.3.0 → 4.3.2 — fixes GHSA-5p4m-2wfm-xmqj (HIGH) — quadratic CPU consumption in `!!omap` resolution. Scoped rather than global so the already-unaffected top-level `js-yaml@5.3.0` is left untouched (#997).
 
-## [1.4.1] - 2026-08-02
+### Removed
 
-Hotfix release addressing dependency vulnerabilities flagged by `npm audit`.
+- **Legacy PostgreSQL migration tooling**: removed `scripts/pg-to-sqlite.ts` and
+  `docker-compose.migrate.yml`. The tool dated from the v1.1 move off PostgreSQL
+  and only knew about 8 of the project's 19 tables, so pointing it at a current
+  database would have silently skipped the rest — and it continued past
+  per-table failures while still reporting `Migration completed.` Operators
+  still migrating a pre-v1.1 PostgreSQL installation should use the archived
+  **v1.4.2** release — see [MIGRATION.md](./MIGRATION.md), which now inlines the
+  pinned compose file, links the sources by tag permalink, and spells out how to
+  verify the result.
+
+## [1.4.1 - 1.4.2] - 2026-08
+
+Hotfix releases addressing dependency vulnerabilities
 
 ### Security
 
-- **Dependency Vulnerabilities**: Fixed 3 known vulnerabilities in `brace-expansion`, `js-yaml`, and `body-parser`, plus a second, devDependency-only resolution path for the same `brace-expansion` advisory.
+- **1.4.2 Dependency Vulnerabilities**: Fixed 3 known vulnerabilities in `brace-expansion`, `js-yaml`, and `body-parser`, plus a second, devDependency-only resolution path for the same `brace-expansion` advisory.
+- **1.4.3 Dependency Vulnerabilities**: Fixed 2 known high-severity vulnerabilities in `ip-address` and `socket.io-parser`.
+
 
 ### Vulnerabilities Addressed
+
+#### 1.4.2
 
 - **brace-expansion** 5.0.7 → 5.0.8 — fixes **CVE-2026-14257** (GHSA-mh99-v99m-4gvg, HIGH) — DoS via unbounded expansion length causing an out-of-memory process crash.
 - **js-yaml** 5.2.1 → 5.2.2 — fixes GHSA-pm4m-ph32-ghv5 (no CVE assigned, HIGH) — exponential parsing time in flow collections leading to denial of service.
 - **body-parser** 1.20.5 → 1.20.6 — fixes **CVE-2026-12590** (GHSA-v422-hmwv-36x6, LOW) — an invalid `limit` value silently disabled size enforcement, allowing arbitrarily large request payloads.
 - **minimatch** override pinned to `^10.2.5` — closes a second resolution path for **CVE-2026-14257** (GHSA-mh99-v99m-4gvg, HIGH): `eslint-plugin-react`'s bundled `minimatch@3.1.5` still pulled the vulnerable `brace-expansion@1.1.16`. devDependency-only (not shipped in the production image), but flagged by `npm audit` without `--omit=dev`, so pinned for a fully clean audit.
+
+#### 1.4.3
+
+- **ip-address** (transitive, via `express-rate-limit`) 10.2.0 → 10.5.0 — fixes GHSA-mwp4-54f8-5fhr (HIGH) — `Address4` decoded leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass; vulnerable range `<=10.3.0`. Also crosses the `fixed` boundary for two moderate SSRF-adjacent advisories, GHSA-4xrf-jv44-h6hh and GHSA-22jq-vg5j-6vgg. No `overrides` pin needed — `express-rate-limit`'s `^8.5.2` range already permits 10.5.0, so a lockfile-only bump (`npm update ip-address`) was sufficient.
+- **socket.io-parser** (npm `overrides` pin) 4.2.6 → 4.2.7 — fixes GHSA-2m8v-j782-fhvr (HIGH, CVSS 7.5) — zero-attachment memory exhaustion, vulnerable range `4.0.0 - <4.2.7`. Reaches production via `socket.io`/`socket.io-client` (real-time download-progress and notification updates).
 
 ## [1.4.0] - 2026-07-16
 

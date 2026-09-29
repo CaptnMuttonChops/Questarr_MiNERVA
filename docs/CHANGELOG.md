@@ -27,7 +27,7 @@ All notable changes to this project will be documented in this file.
 
 #### Downloads & Import
 
-- **AI release analysis (TypeSafe/Jev)**: [OPTIONAL/BYOK] auto-download can run an AI legitimacy check and hold a suspicious match for manual review (notified over Apprise) instead of downloading it (#1070, #1077, #1078). Uses Jev model from TypeSafe via OpenRouter, with your own API key. [Learn about Jev]([url](https://share.gemini.google/lrbViMx1ndNB))
+- **AI release analysis (TypeSafe/Jev)**: [OPTIONAL/BYOK] auto-download can run an AI legitimacy check and hold a suspicious match for manual review (notified over Apprise) instead of downloading it (#1070, #1077, #1078). Uses Jev model from TypeSafe via OpenRouter, with your own API key. [Learn about Jev](<[url](https://share.gemini.google/lrbViMx1ndNB)>)
 - **Packs/Addons** download category (#876).
 - **Password-protected archives** are now routed to manual review with a password prompt, instead of failing (#1033).
 - **SABnzbd**: archive password support for G4U-style releases (#962).
@@ -124,6 +124,9 @@ All notable changes to this project will be documented in this file.
 - **Downloaders**: self-signed-certificate TLS bypass is now opt-in, not default (#947).
 - **Archive import**: source reads are now restricted to configured downloader roots (#1052).
 - **Indexers**: sanitized the comments URL before linking release titles (XSS) (#895); enforced the HTTP indexer API-key policy with a per-indexer insecure-LAN opt-in (#1022).
+- **SSL settings**: the cert/key path containment check now runs on the same canonicalized path that's saved, closing a checked-vs-used mismatch flagged by CodeQL (#1113).
+- **SPA catch-all route**: now rate limited, alongside the existing `/api` limiter (#1113).
+- **Logs**: an indexer-controlled release title can no longer land in a `console.error` format-string position (#1113).
 
 #### Scanning & Logging
 
@@ -136,6 +139,8 @@ All notable changes to this project will be documented in this file.
 - Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
 - Fixed 3 additional known vulnerabilities in `qs` and `js-yaml` (#997).
 - Fixed a critical IP-spoofing vulnerability in `proxy-addr`.
+- Fixed 2 further known vulnerabilities in `ip-address` and one in `undici` (#1118).
+- Patched the Docker base image's `openssl`/`expat` and removed its bundled npm CLI (dropping vendored `tar`/`ip-address`/`brace-expansion` copies) (#1113).
 
 ### Vulnerabilities Addressed
 
@@ -146,6 +151,9 @@ All notable changes to this project will be documented in this file.
 - **socket.io-parser** (npm `overrides` pin) 4.2.6 → 4.2.7 — fixes GHSA-2m8v-j782-fhvr (HIGH, CVSS 7.5) — zero-attachment memory exhaustion, vulnerable range `4.0.0 - <4.2.7`. Reaches production via `socket.io`/`socket.io-client` (real-time download-progress and notification updates).
 - **qs** (npm `overrides` pin) 6.15.2 → 6.16.0 — fixes GHSA-4mjr-xmp4-gh2g (MODERATE) — DoS via attacker-controlled `isBuffer`, vulnerable range `>=2.2.5 <6.16.0` — and GHSA-x5fp-wj9c-mxmx (MODERATE) — array-limit bypass via bracket-key comma parsing, vulnerable range `>=6.14.2 <=6.15.3`. Reaches production via `express`/`body-parser`, both of which pin `qs: ~6.15.1` (a range that otherwise excludes the fix); the same override also closes the gap in `openid`, `steam-web`, and `superagent` (#997).
 - **js-yaml** (npm `overrides` pin, dev-only, scoped to `@eslint/eslintrc`) 4.3.0 → 4.3.2 — fixes GHSA-5p4m-2wfm-xmqj (HIGH) — quadratic CPU consumption in `!!omap` resolution. Scoped rather than global so the already-unaffected top-level `js-yaml@5.3.0` is left untouched (#997).
+- **ip-address** 10.4.0 → 10.7.2 — fixes GHSA-rpw4-54j3-4h4q and GHSA-2vr4-cq9g-pvrc (`npm audit fix`, lockfile only) (#1118).
+- **undici** (dev-only, pulled in by `node-gyp` under `@lizenz/checker`) 6.28.0 → 6.29.0 — fixes GHSA-3wwx-pv8p-q78v (#1118).
+- Docker base image: `apk upgrade` for Alpine's patched `openssl`/`expat` (Trivy #417, #361, #351, #364, #363); removed the base image's bundled npm CLI after `npm prune`, dropping its vendored `tar`/`ip-address`/`brace-expansion` copies (Trivy #350, #287, #286, #272) (#1113).
 
 ### Removed
 
@@ -167,7 +175,6 @@ Hotfix releases addressing dependency vulnerabilities
 
 - **1.4.2 Dependency Vulnerabilities**: Fixed 3 known vulnerabilities in `brace-expansion`, `js-yaml`, and `body-parser`, plus a second, devDependency-only resolution path for the same `brace-expansion` advisory.
 - **1.4.3 Dependency Vulnerabilities**: Fixed 2 known high-severity vulnerabilities in `ip-address` and `socket.io-parser`.
-
 
 ### Vulnerabilities Addressed
 

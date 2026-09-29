@@ -1112,6 +1112,33 @@ describe("Cron - checkAutoSearch", () => {
     expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
   });
 
+  it("should clear search results badge when no item passes strict title matching", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockSearchAllIndexers.mockResolvedValue({
+      items: [
+        {
+          title: "Completely Different Title-CODEX",
+          link: "https://example.com/download",
+          pubDate: FIXED_PUB_DATE,
+          seeders: 50,
+          size: 10_000,
+        },
+      ],
+      errors: [],
+      total: 1,
+    });
+
+    await checkAutoSearch();
+
+    expect(igdbLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ gameTitle: game.title, originalCount: 1 }),
+      "No items passed strict title matching"
+    );
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, false);
+    expect(mockAddNotification).not.toHaveBeenCalled();
+  });
+
   it("should clear search results badge when indexer returns zero items", async () => {
     const game = { ...baseGame, releaseStatus: "released" as const };
     mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));

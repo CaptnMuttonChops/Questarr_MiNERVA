@@ -189,10 +189,12 @@ pveam update >/dev/null 2>&1 || warn "'pveam update' failed — using the cached
 # for the wrong architecture — "arm64" sorts after "amd64" — which creates
 # and starts a container that can never exec its init ("Exec format error").
 HOST_ARCH="$(dpkg --print-architecture)"
+# grep exits 1 on no match; under pipefail that would fire the ERR trap
+# before the explicit die below, so only real grep errors (>1) propagate.
 TEMPLATE="$(pveam available --section system |
   awk '{print $2}' |
-  grep -E '^debian-1[0-9]+-standard' |
-  grep -E "_${HOST_ARCH}\.tar\.(gz|zst|xz)$" |
+  { grep -E '^debian-1[0-9]+-standard' || [[ $? -eq 1 ]]; } |
+  { grep -E "_${HOST_ARCH}\.tar\.(gz|zst|xz)$" || [[ $? -eq 1 ]]; } |
   sort -V |
   tail -n1)"
 [ -n "${TEMPLATE}" ] || die "No Debian LXC template found in the Proxmox catalogue for architecture '${HOST_ARCH}'."

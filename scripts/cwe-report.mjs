@@ -94,10 +94,13 @@ async function osvVulnDetails(id, cache) {
   if (cves.length === 0) cves.push(vuln.id);
 
   // CWE IDs appear in database_specific.cwes as [{cwe_id: "CWE-79", name: "..."}, ...]
-  // Some advisories (e.g. older GHSA records) use a plain string array instead.
-  const rawCwes = vuln.database_specific?.cwes ?? [];
+  // Some advisories (e.g. older GHSA records) use a plain string array instead, and current
+  // OSV records (GHSA and CVE alike) expose them as database_specific.cwe_ids: ["CWE-79", ...].
+  const rawCwes = vuln.database_specific?.cwes ?? vuln.database_specific?.cwe_ids ?? [];
   const cwes = rawCwes.map((entry) =>
-    typeof entry === "string" ? { id: entry, name: "" } : { id: entry.cwe_id, name: entry.name ?? "" }
+    typeof entry === "string"
+      ? { id: entry, name: "" }
+      : { id: entry.cwe_id, name: entry.name ?? "" }
   );
 
   const detail = { id: vuln.id, cves, summary: vuln.summary ?? "(no summary)", cwes };

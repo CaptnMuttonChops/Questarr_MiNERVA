@@ -77,6 +77,19 @@ export const generalApiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for the SPA catch-all route (vite's dev middleware transform and the
+// production static/index.html fallback). generalApiLimiter only covers "/api", so
+// without this, that wildcard handler — which does a disk read (and, in dev, a full
+// Vite HTML transform) on every request — has no limit at all. Kept more permissive
+// than the API limiter since real page loads fan out into many asset requests.
+export const staticAssetLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // limit each IP to 300 requests per minute
+  message: "Too many requests, please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Validation middleware to check for validation errors
 export const validateRequest = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);

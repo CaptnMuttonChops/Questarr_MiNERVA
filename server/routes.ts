@@ -126,6 +126,47 @@ import { readLastLogLines } from "./log-file.js";
 // Root directory for the file system browser; restrict browsing to this tree
 const FILE_BROWSER_ROOT = fs.realpathSync(process.cwd());
 
+/** Returns true when `candidate` is FILE_BROWSER_ROOT itself or a path beneath it. */
+function isInsideFileBrowserRoot(candidate: string): boolean {
+  const relative = path.relative(FILE_BROWSER_ROOT, candidate);
+  return relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
+}
+
+/**
+ * Resolves a user-supplied path against FILE_BROWSER_ROOT, following symlinks, and
+ * returns the canonical path only if it stays inside the root (null otherwise). For a
+ * path that doesn't fully exist yet, the nearest existing ancestor is canonicalized and
+ * the missing components re-appended, so a symlinked directory anywhere along the way
+ * can't point a not-yet-created file outside the root.
+ */
+async function resolveCanonicalWithinFileBrowserRoot(input: string): Promise<string | null> {
+  const resolved = path.resolve(FILE_BROWSER_ROOT, input);
+  // Lexical check first, inline and gating the realpath() below, so CodeQL's
+  // path-injection analysis sees the filesystem call as guarded.
+  const lexical = path.relative(FILE_BROWSER_ROOT, resolved);
+  if (lexical === ".." || lexical.startsWith(".." + path.sep) || path.isAbsolute(lexical)) {
+    return null;
+  }
+
+  // Walk up to the nearest existing ancestor, remembering the missing components.
+  const missing: string[] = [];
+  let existing = resolved;
+  let canonicalBase: string | null = null;
+  while (canonicalBase === null) {
+    try {
+      canonicalBase = await fs.promises.realpath(existing);
+    } catch (error) {
+      const parent = path.dirname(existing);
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" || parent === existing) throw error;
+      missing.unshift(path.basename(existing));
+      existing = parent;
+    }
+  }
+
+  const canonical = path.join(canonicalBase, ...missing);
+  return isInsideFileBrowserRoot(canonical) ? canonical : null;
+}
+
 type IgdbConfigSource = "env" | "database" | undefined;
 
 interface IgdbConfigStatus {
@@ -1157,33 +1198,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid 'enabled' value" });
       if (typeof port !== "number") return res.status(400).json({ error: "Invalid 'port' value" });
 
-      // Security check for file paths
+      if (
+        (certPath !== undefined && typeof certPath !== "string") ||
+        (keyPath !== undefined && typeof keyPath !== "string")
+      ) {
+        return res.status(400).json({ error: "Invalid certificate or key path" });
+      }
+
+      // Security check for file paths: canonical (symlink-resolved) and inside the root.
       let resolvedCertPath: string | undefined = certPath;
       let resolvedKeyPath: string | undefined = keyPath;
-      if (certPath || keyPath) {
-        const normalizedRoot = FILE_BROWSER_ROOT.endsWith(path.sep)
-          ? FILE_BROWSER_ROOT
-          : FILE_BROWSER_ROOT + path.sep;
-
-        if (certPath) {
-          resolvedCertPath = path.resolve(FILE_BROWSER_ROOT, certPath);
-          if (!resolvedCertPath.startsWith(normalizedRoot)) {
-            return res.status(403).json({ error: "Access to cert path is not allowed" });
-          }
+      if (certPath) {
+        const canonical = await resolveCanonicalWithinFileBrowserRoot(certPath);
+        if (!canonical) {
+          return res.status(403).json({ error: "Access to cert path is not allowed" });
         }
-        if (keyPath) {
-          resolvedKeyPath = path.resolve(FILE_BROWSER_ROOT, keyPath);
-          if (!resolvedKeyPath.startsWith(normalizedRoot)) {
-            return res.status(403).json({ error: "Access to key path is not allowed" });
-          }
+        resolvedCertPath = canonical;
+      }
+      if (keyPath) {
+        const canonical = await resolveCanonicalWithinFileBrowserRoot(keyPath);
+        if (!canonical) {
+          return res.status(403).json({ error: "Access to key path is not allowed" });
         }
+        resolvedKeyPath = canonical;
       }
 
       // Validate if enabling SSL
       if (enabled) {
         if (certPath && keyPath) {
+          // Validate the same canonical paths that were checked above and get saved below.
           const { validateCertFiles } = await import("./ssl.js"); // Dynamic import to avoid circular deps if any
-          const { valid, error } = await validateCertFiles(certPath, keyPath);
+          const { valid, error } = await validateCertFiles(
+            resolvedCertPath as string,
+            resolvedKeyPath as string
+          );
           if (!valid) {
             return res.status(400).json({ error: `Invalid SSL configuration: ${error}` });
           }
@@ -1193,8 +1241,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // But simpler to just require them if they are changing.
           // If they are missing in body, let's look up current config
           const current = configLoader.getSslConfig();
-          const effectiveCert = certPath || current.certPath;
-          const effectiveKey = keyPath || current.keyPath;
+          // current.certPath/keyPath were already root-contained when they were saved,
+          // so only the newly supplied (resolved) values need the same treatment here.
+          const effectiveCert = certPath ? resolvedCertPath : current.certPath;
+          const effectiveKey = keyPath ? resolvedKeyPath : current.keyPath;
 
           if (!effectiveCert || !effectiveKey) {
             return res
@@ -1370,6 +1420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Resolve against the root and normalize
+        // nosemgrep: javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal -- result is checked against FILE_BROWSER_ROOT below, both lexically and again after realpath(), before any filesystem read
         const resolvedPath = path.resolve(FILE_BROWSER_ROOT, queryPath);
 
         const normalizedRoot = FILE_BROWSER_ROOT.endsWith(path.sep)
@@ -4279,7 +4330,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 archive.append(Buffer.from(buffer), { name: filename });
               }
             } catch (error) {
-              console.error(`Error adding ${download.title} to bundle:`, error);
+              // download.title is user/indexer-controlled; keep it out of the format-string
+              // position (console.error runs util.format on its first argument, so a title
+              // containing "%s" etc. would otherwise consume `error` as a substitution).
+              console.error("Error adding to bundle:", download.title, error);
             }
           })
         );

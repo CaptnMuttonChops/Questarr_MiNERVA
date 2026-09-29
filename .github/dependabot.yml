@@ -73,3 +73,18 @@ updates:
       interval: daily
     cooldown:
       default-days: 7
+
+  # Hash-pinned Python tooling: Apprise in the Docker image, Semgrep in sast.yml
+  - package-ecosystem: pip
+    directories:
+      - /requirements
+      - /.github/requirements
+    target-branch: "main"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      python-tooling:
+        patterns:
+          - "*"

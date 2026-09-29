@@ -182,13 +182,20 @@ fi
 msg "Refreshing the template catalogue"
 pveam update >/dev/null 2>&1 || warn "'pveam update' failed — using the cached catalogue."
 
-# Newest available Debian standard template, preferring the highest release.
+# Newest available Debian standard template for this host's architecture,
+# preferring the highest release. The catalogue lists templates for every
+# architecture Proxmox supports (amd64, arm64, ...); picking the newest by
+# name alone (e.g. via `sort -V | tail -n1`) can silently pick a template
+# for the wrong architecture — "arm64" sorts after "amd64" — which creates
+# and starts a container that can never exec its init ("Exec format error").
+HOST_ARCH="$(dpkg --print-architecture)"
 TEMPLATE="$(pveam available --section system |
   awk '{print $2}' |
   grep -E '^debian-1[0-9]+-standard' |
+  grep -E "_${HOST_ARCH}\.tar\.(gz|zst|xz)$" |
   sort -V |
   tail -n1)"
-[ -n "${TEMPLATE}" ] || die "No Debian LXC template found in the Proxmox catalogue."
+[ -n "${TEMPLATE}" ] || die "No Debian LXC template found in the Proxmox catalogue for architecture '${HOST_ARCH}'."
 
 if ! pveam list "${TEMPLATE_STORAGE}" 2>/dev/null | awk '{print $1}' | grep -q "/${TEMPLATE}$"; then
   msg "Downloading ${TEMPLATE} to ${TEMPLATE_STORAGE}"

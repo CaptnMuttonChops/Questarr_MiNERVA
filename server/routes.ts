@@ -126,12 +126,6 @@ import { readLastLogLines } from "./log-file.js";
 // Root directory for the file system browser; restrict browsing to this tree
 const FILE_BROWSER_ROOT = fs.realpathSync(process.cwd());
 
-/** Returns true when `candidate` is FILE_BROWSER_ROOT itself or a path beneath it. */
-function isInsideFileBrowserRoot(candidate: string): boolean {
-  const relative = path.relative(FILE_BROWSER_ROOT, candidate);
-  return relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
-}
-
 /**
  * Resolves a user-supplied path against FILE_BROWSER_ROOT, following symlinks, and
  * returns the canonical path only if it stays inside the root (null otherwise). For a
@@ -163,8 +157,14 @@ async function resolveCanonicalWithinFileBrowserRoot(input: string): Promise<str
     }
   }
 
+  // Containment re-checked inline on the canonical path (not via a helper) so CodeQL
+  // sees the value handed to validateCertFiles() as guarded.
   const canonical = path.join(canonicalBase, ...missing);
-  return isInsideFileBrowserRoot(canonical) ? canonical : null;
+  const relative = path.relative(FILE_BROWSER_ROOT, canonical);
+  if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+    return null;
+  }
+  return canonical;
 }
 
 type IgdbConfigSource = "env" | "database" | undefined;

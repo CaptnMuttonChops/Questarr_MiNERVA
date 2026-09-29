@@ -326,7 +326,10 @@ async function searchAndCategorizeItemsForGame(
     }
 
     matchedItems = items.filter((item) => releaseMatchesGame(item.title, game.title));
-    if (matchedItems.length === 0) {
+    // A first page with no title match means the search is not about this game. Later pages
+    // are only fetched because the blacklist hid a whole page, so an unrelated page there
+    // should not stop the search.
+    if (matchedItems.length === 0 && page === 0) {
       igdbLogger.debug(
         { gameTitle: game.title, originalCount: items.length },
         "No items passed strict title matching"

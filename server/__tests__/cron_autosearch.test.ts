@@ -1048,6 +1048,50 @@ describe("Cron - checkAutoSearch", () => {
     );
   });
 
+  it("should keep paging past a later page with no title match", async () => {
+    const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
+    mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));
+    mockGetUserSettings.mockResolvedValue({
+      ...baseSettings,
+      releaseNameBlacklist: '["HYPERVISOR"]',
+    });
+    const makePage = (prefix: string, start: number) =>
+      Array.from({ length: 10 }, (_, i) => ({
+        title: `${prefix}-${start + i}`,
+        link: `https://example.com/download${start + i}`,
+        pubDate: FIXED_PUB_DATE,
+        seeders: 50,
+        size: 10_000,
+      }));
+    mockSearchAllIndexers
+      .mockResolvedValueOnce({ items: makePage("Test Game-HYPERVISOR", 0), errors: [], total: 21 })
+      .mockResolvedValueOnce({ items: makePage("Unrelated Title", 10), errors: [], total: 21 })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            title: "Test Game-CODEX",
+            link: "https://example.com/download20",
+            pubDate: FIXED_PUB_DATE,
+            seeders: 50,
+            size: 10_000,
+          },
+        ],
+        errors: [],
+        total: 21,
+      });
+
+    await checkAutoSearch();
+
+    expect(mockSearchAllIndexers).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ limit: 10, offset: 20 })
+    );
+    expect(mockUpdateGameSearchResultsAvailable).toHaveBeenCalledWith(game.id, true);
+    expect(mockAddNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId, title: "Game Available" })
+    );
+  });
+
   it("should stop paging after the page limit when every page is globally blacklisted", async () => {
     const game = { ...baseGame, status: "wanted" as const, releaseStatus: "released" as const };
     mockGetWantedGamesGroupedByUser.mockResolvedValue(new Map([[userId, [game]]]));

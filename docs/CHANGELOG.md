@@ -4,7 +4,180 @@ All notable changes to this project will be documented in this file.
 
 ## [1.5.0] - 2026-09-xx
 
-Addresses dependency vulnerabilities flagged by `npm audit`.
+### Added
+
+#### Library & Discovery
+
+- **Root folder / Scan Disk**: discover games already present on disk, plus safe recursive file discovery within a game's own folder to reconcile files already there (#943, #892, #938).
+- **Platforms setting**: one Settings > Platforms list to always only see your platform of choice by default across Library, Discover, Add Game, and download search (#1018, #1104).
+- **Per-game target platforms** for automatic downloads (#1048).
+- **Platform and release year filters** on game search (#897).
+- **Library filters**: added filters to hide shelved games and games already owned from search/discover results (#1089).
+- **"Playing" status** for games (#1043), with a dedicated **Playing** page — journal notes, a milestones checklist, screenshots, and Steam achievements per game (#1080).
+- **Crack status** section on the game detail page (#1012, #1062).
+- **Time to Beat** via IGDB's official endpoint (#1063).
+- **Sort menu** on the Library page, plus an indexer-priority sort option for downloads (#980, #963).
+- **DLC & expansions**: games now persist their IGDB expansions and show them in a new DLC tab on the game detail page, with cover art, release year, and a category badge (#1105).
+- **xREL**: surfaces a release's nuke reason with a "Nuked" badge (#948).
+- **Screenshot lightbox**: carousel navigation with arrow-key and swipe support, plus an image counter (#804).
+- **Wishlist**: configurable grid column count (#871).
+- **Content filtering**: filters to hide erotic and age-restricted (ESRB AO / PEGI 18) games from the library, search, and discovery pages (#808).
+- **Windows 2000 style mode**: a retro cosmetic theme (#807).
+- **Sidebar**: moved the xREL and RSS pages under Discover (#1086). Wishlist moved into Library group alongside Playing; on mobile, Playing replaced Wishlist in the pinned bottom-nav slots (Wishlist stays reachable via "More") (#1080).
+
+#### Downloads & Import
+
+- **AI release analysis (TypeSafe/Jev)**: [OPTIONAL/BYOK] auto-download can run an AI legitimacy check and hold a suspicious match for manual review (notified over Apprise) instead of downloading it (#1070, #1077, #1078). Uses Jev model from TypeSafe via OpenRouter, with your own API key. [Learn about Jev](<[url](https://share.gemini.google/lrbViMx1ndNB)>)
+- **Packs/Addons** download category (#876).
+- **Password-protected archives** are now routed to manual review with a password prompt, instead of failing (#1033).
+- **SABnzbd**: archive password support for G4U-style releases (#962).
+- **Pre-import security scanning**: [OPTIONAL] VirusTotal (hash lookup) and ClamAV (local deep scan) checks before a download is unpacked or moved into the library; a detection quarantines the download and raises a Security Alert notification instead of importing it (#1102).
+- **Pending imports**: orphaned downloads (missing game record) get a dedicated "Link Game" action to reattach them instead of stalling silently (#932).
+- **Download search**: results now link back to their indexer/source page (#872).
+- **Global release name blacklist**: Settings → Discovery & Downloads lets you hide any release whose title contains a given term, case-insensitively, across manual search, both auto-search cycles, and AI enrichment/auto-download (#1112, closes #991).
+
+#### Integrations
+
+- **PostgreSQL backend**: [OPTIONAL] Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md` if you're looking to migrate from SQLite.
+- **Playnite integration**: API keys, an integration API, and a Playnite extension. See [the extension's README](../extensions/playnite-questarr/README.md) for setup (#986).
+- **Steam wishlist**: optional auto-sync on a configurable interval, alongside the existing manual sync (#805).
+
+#### Deployment & Admin
+
+- **Deployment**: Windows installer build (#933); a Helm chart, a Proxmox VE LXC script, and CasaOS/Umbrel/Cosmos Cloud app-store definitions (#983, #985, #982).
+- **Reverse proxy subdirectory deployments**: `QUESTARR_BASE_PATH` is now a runtime server config (no rebuild needed) for serving Questarr behind a path prefix; see `docs/REVERSE_PROXY.md` (#844).
+- **`/api/status`**: new dashboard endpoint (#984).
+- **Debug logging**: optional logging of full downloader responses (#927).
+- **Telemetry**: [OPTIONAL] automatic reporting of unhandled server errors (#924). This uses the same function as the "Send Logs" button in the logs page and allows maintainers to proactively analyze errors not necessarily raised by users.
+- **Password reset**: `npm run reset-password` CLI script for a forgotten admin password (#860).
+
+### Fixed
+
+#### Import & Archives
+
+- **Hardlink import**: falls back to copy when hardlinks are unsupported, including for multi-file downloads (#873, #978).
+- **Import**: `modeUsed` was only reporting the last per-file fallback (#931).
+- **Import**: a download that disappeared from the client (e.g. pruned after a seed-ratio limit) was silently marked owned without importing anything; now routed to manual review (#837). A failed import used to dead-end with no retry path; failures now go to Pending Manual Imports so they can be adjusted and retried (#840).
+- **Import**: a single-file torrent saved outside a subfolder produced a 500 instead of importing (#856).
+- **SABnzbd**: fixed the manual Confirm Import path resolution and a history lookup that missed archived/failed downloads (#940, #1044); manual Confirm Import could also build a duplicated source path (`.../release/release`) (#937).
+- **NZBGet**: the configured category was never applied to new downloads (#851); completed downloads with a non-`SUCCESS/ALL` history status were reported as aborted (#855); `downloadDir` was never populated on completion, so successful downloads never reached import (#932).
+- **Usenet**: download ids (e.g. SABnzbd's `nzo_id`) were incorrectly lowercased on claim/scan routes, breaking case-sensitive status lookups (#1055).
+- **Nintendo Switch**: fixed silent import failures for NSP/XCI releases (#1021).
+- **Archive extraction**: RAR archives silently produced empty output instead of failing loudly; routed through a working extractor, ending on Alpine-native 7-Zip plus RARLAB's official `unrar` binary for reliable RAR/multi-volume support (#803). Archives now unpack at the destination instead of the downloader directory, with hardened multi-volume (`.partN.rar`, `.7z.NNN`) sibling detection (#1049). A large/slow extraction could also be re-triggered mid-unpack by the next status check, clobbering itself (#1014).
+
+#### Downloaders & Indexers, Integrations
+
+- **qBittorrent**: v5+ downloads not tracked when the API returns an async `pending_count`; v5.2+ torrent-upload success not recognized; a fallback for v2.0.2 (#1015, #926, #869).
+- **Prowlarr**: download links no longer double-wrapped when the proxy URL comes back on a container IP (#1007).
+- **Indexers**: search categories outside 40xx/10xx were being dropped; hardened Newznab/Torznab caps discovery (#1058, #951).
+- **Downloaders**: credential policy now validates the resolved URL, not just `useSsl` (#1061).
+- **IGDB**: validated the rate-limit setting's range; canonicalized/deduped game editions in search results (#1020, #950).
+- **Unraid**: fixed the Community Applications template category and default `PUID`/`PGID`, and added an optional Library Path and `UMASK` setting (#850, #886).
+- **safeFetch**: fixed the `Host` header being silently replaced by the resolved IP on plain-HTTP requests, which broke Prowlarr's proxy-link matching (#822).
+
+#### Documentation
+
+- **`docs/SECRETS.md`** §8 wrongly said the `pg-to-sqlite` credential-logging issue was still open; it was fixed in v1.4.0. Now states the affected range (v1.1.0–v1.3.1) and that operators who kept logs from that range should rotate their Postgres password.
+- **v1.1 Migration guide**: added the Compose project name to `docs/MIGRATION.md`'s own example commands (#1084).
+
+#### UI & Misc
+
+- **Clipboard**: copy buttons now work on non-secure (HTTP) contexts (#961).
+- **Calendar**: follow-up fixes to the year view's date filtering.
+- **Release notifications**: no longer sent for games added with a release date already in the past (#874).
+- **Scroll areas**: scrollbars stayed hidden except while actively scrolling (#875).
+
+### Changed
+
+#### Auth & Settings
+
+- **Auth**: migrated to httpOnly cookies plus CSRF, with a bearer-token fallback (#954).
+- **IGDB credential validation** and a test-connection UI (#1064).
+- **Settings**: reorganized page tabs by domain; moved the Discord webhook config to the Stats page (#949, #946).
+- **Appearance**: unified theme selection into a single dropdown (#1042).
+
+#### Performance
+
+- **Calendar**: greyed out past days and games in the year view; optimized its date filtering for performance (#1051, #1076).
+- **Downloads page**: optimized filtering with `useMemo` (#1041).
+- Made the pending-imports alert collapsible across multiple reviews (#1038).
+
+#### Mobile
+
+- **Mobile**: personal notes collapse behind an Edit button; the Settings tab strip gets scroll-fade hints (#993, #969).
+
+#### Other
+
+- **Logs page**: history limit raised from 200 to 1000 lines (#928).
+- Dependency updates: `undici` 7.29.0 → 8.9.0 (direct dependency, used by the SSRF-safe fetch wrapper in `server/ssrf.ts`). No vulnerability fix — see `docs/CVE_FIXES_BY_RELEASE.md` for verification. Major version bump; undici 8.9.0 requires Node `>=22.19.0`, so Questarr's own `engines.node` floor is raised from `>=20` to `>=22.19.0` to match — this only formalizes existing practice, since CI (`node-version: 26.x`) and the production Docker image (`node:26-alpine`) were already on Node 26. Full test suite and `server/__tests__/ssrf.test.ts` verified green against the new version.
+
+### Security
+
+#### Access Control
+
+- **API auth**: added a default-deny boundary and fixed an unauthenticated `GET /api/config` (#953).
+- **Auth**: failed login attempts are now logged for brute-force/credential-stuffing detection (#858); fixed an IDOR letting any user modify or delete another user's games, and strengthened the password policy to 8+ characters with a letter and a digit (#859).
+- **Input validation**: hardened indexer search, qBittorrent, NexusMods, and game-status endpoints against unbounded/malformed input (#857).
+
+#### Network & Downloads
+
+- **Downloader SSRF**: closed a gap in outbound requests (#890).
+- **Downloaders**: self-signed-certificate TLS bypass is now opt-in, not default (#947).
+- **Archive import**: source reads are now restricted to configured downloader roots (#1052).
+- **Indexers**: sanitized the comments URL before linking release titles (XSS) (#895); enforced the HTTP indexer API-key policy with a per-indexer insecure-LAN opt-in (#1022).
+- **SSL settings**: the cert/key path containment check now runs on the same canonicalized path that's saved, closing a checked-vs-used mismatch flagged by CodeQL (#1113).
+- **SPA catch-all route**: now rate limited, alongside the existing `/api` limiter (#1113).
+- **Logs**: an indexer-controlled release title can no longer land in a `console.error` format-string position (#1113).
+
+#### Scanning & Logging
+
+- **Scan Disk endpoint**: limited recursive traversal with a max file count and time budget, and added rate limiting, reducing DoS exposure on large directory trees (#1069).
+- **Logging**: production no longer hardcodes the debug log level, and secrets are now redacted from logs; API keys/tokens are also redacted before logs are sent to support (#952, #960).
+- **Search engines**: `/robots.txt` no longer bypasses security headers, and instances are kept out of search-engine indexes (#941, #939).
+
+#### Dependency Vulnerabilities
+
+- Fixed 17 known vulnerabilities in production dependencies since 1.4.2: `fast-uri` (6), `multer` (5), `ip-address` (2), `qs` (2), `undici` (1), plus a critical IP-spoofing vulnerability in `proxy-addr` (#879, #981, #997, #1000, #1028, #1066, #1118).
+- Fixed 9 known vulnerabilities in build and test tooling that is not shipped in the production image: `js-yaml` 4.x (2), `nanoid` 3.x (2), `browserslist` (2), `baseline-browser-mapping`, `postcss` and `vitest`.
+- Patched the Docker base image's `openssl`/`expat` and removed its bundled npm CLI (dropping vendored `tar`/`ip-address`/`brace-expansion` copies) (#1113).
+
+### Vulnerabilities Addressed
+
+Inventory from `scripts/cve-report.mjs` / `scripts/cwe-report.mjs` against OSV.dev (`v1.4.2` → `main`). Fix versions checked per advisory; the fixes that already shipped in the 1.4.1/1.4.2 hotfixes are listed in that section, not repeated here.
+
+#### Production dependencies
+
+- **proxy-addr** (npm `overrides` pin) 2.0.7 → 2.0.8 — fixes **CVE-2026-90711** ([AIKIDO-2026-101201](https://security.aikido.dev/cve/AIKIDO-2026-101201), CRITICAL) — an undersized IPv4-mapped IPv6 trust-subnet prefix (e.g. `::ffff:10.0.0.0/8` instead of `::ffff:10.0.0.0/104`) was accepted without error but trusted every IPv4 address on the internet, letting unauthenticated clients spoof `X-Forwarded-For` and bypass IP-based access controls, rate limiting, and audit logging, vulnerable range `>=1.1.0 <=2.0.7`. Reaches production via `express`, which pins `proxy-addr: ~2.0.7` (a range that otherwise excludes the fix). Not yet indexed by OSV.dev, so absent from the script output.
+- **fast-uri** (npm `overrides` pin) 3.1.4 → 3.1.7 — fixes 6 HIGH advisories (#879, #981). Reaches production through `ajv`, an optional peer of `@hookform/resolvers` (and dev-only through `secretlint`):
+  - **CVE-2026-18446** (GHSA-7p8r-x3mc-p8w7) — host confusion via backslash authority introducer (fixed in 3.1.5)
+  - **CVE-2026-75931** (GHSA-5jgf-p345-68v8) — host confusion via skipped IDN canonicalization on scheme-relative references
+  - **CVE-2026-76172** (GHSA-jqff-g426-hqxp) — host confusion via percent-encoded scheme normalization
+  - **CVE-2026-75975** (GHSA-f65p-4m7j-42xc) — SSRF via malformed IPv6 normalization
+  - **CVE-2026-75899** (GHSA-fph4-wmhf-6fwf) — SSRF via repeated hostname percent-decoding
+  - **CVE-2026-84292** (GHSA-qw65-cvwx-89v3) — authority injection via an unvalidated port in `serialize`
+- **multer** 2.2.0 → 2.4.0 — fixes 5 CVEs (#1000, #1066):
+  - **CVE-2026-82333** (GHSA-535w-7cp7-47q4, HIGH) — DoS via oversized array index in field names
+  - **CVE-2026-77037** (GHSA-qfvm-cv95-jqjf, HIGH) — DoS via file descriptor leak on aborted uploads
+  - **CVE-2026-77078** (GHSA-wc9g-mqfw-jrwm, HIGH) — DoS via crafted multipart field names
+  - **CVE-2026-88932** (GHSA-3pph-fpjx-jg34, MODERATE) — DoS via orphaned disk writes on aborted uploads (fixed in 2.4.0)
+  - **CVE-2026-77063** (GHSA-qvfw-j98x-7q72, LOW) — file size limit bypass via async `fileFilter` race condition
+- **ip-address** (npm `overrides` pin, transitive via `express-rate-limit` and `socks`) 10.5.0 → 10.7.2 — fixes **CVE-2026-101913** (GHSA-rpw4-54j3-4h4q, MODERATE) — `Address6.isLinkLocal()` recognized `fe80::/64` rather than `fe80::/10` — and **CVE-2026-101910** (GHSA-2vr4-cq9g-pvrc, MODERATE) — the NAT64 local-use range `64:ff9b:1::/48` was not classified; both allowed SSRF and trust-boundary bypass (#1118).
+- **qs** (npm `overrides` pin) 6.15.2 → 6.16.0 — fixes **CVE-2026-82417** (GHSA-4mjr-xmp4-gh2g, MODERATE) — DoS via attacker-controlled `isBuffer`, vulnerable range `>=2.2.5 <6.16.0` — and **CVE-2026-82562** (GHSA-x5fp-wj9c-mxmx, MODERATE) — array-limit bypass via bracket-key comma parsing, vulnerable range `>=6.14.2 <=6.15.3`. Reaches production via `express`/`body-parser`, both of which pin `qs: ~6.15.1` (a range that otherwise excludes the fix); the same override also closes the gap in `openid`, `steam-web`, and `superagent` (#997).
+- **undici** (direct dependency) 8.10.0 → 8.10.2 — fixes **CVE-2026-85024** (GHSA-3wwx-pv8p-q78v, MODERATE) — DoS via an unhandled error in WebSocket permessage-deflate decompression (#1028). The earlier 7.29.0 → 8.9.0 major bump crossed no fix boundary (see Changed). Before it became a direct dependency, `undici` was only a dev-only transitive of `jsdom`, whose 7.28.0 → 7.29.0 refresh fixed CVE-2026-13697, CVE-2026-16728, CVE-2026-14643, CVE-2026-15157 and CVE-2026-16729 in test tooling.
+
+#### Development dependencies (not shipped in the production image)
+
+- **js-yaml** (npm `overrides` pin, scoped to `@eslint/eslintrc`, and the other nested 4.x copies) 4.3.0 → 4.3.2 — fixes GHSA-5p4m-2wfm-xmqj (no CVE assigned, HIGH) — quadratic CPU consumption in `!!omap` resolution — and **CVE-2026-84375** (GHSA-2883-xcg3-v3hh, HIGH) — `maxTotalMergeKeys` did not limit CPU use for empty merge sources (#894, #997, #998). The top-level `js-yaml` 5.x used in production was already unaffected.
+- **nanoid** (nested under `postcss`) 3.3.12 → 3.3.18 — fixes **CVE-2026-67214** (GHSA-28wg-ghj8-5hjv, HIGH) and **CVE-2026-67213** (GHSA-2v37-7h3g-55p8, HIGH) — generators could loop indefinitely with a negative or zero size (#917). The production `nanoid` 6.x was never affected.
+- **browserslist** 4.28.4 → 4.28.9 — fixes **CVE-2026-73088** (GHSA-73wf-gq98-2v4g, HIGH) — crash / prototype write via untrusted custom stats — and **CVE-2026-73089** (GHSA-c83g-rgw3-j3cx, HIGH) — unbounded memory growth via distinct query results.
+- **baseline-browser-mapping** 2.10.40 → 2.11.21 — fixes **CVE-2026-45819** (GHSA-w5vr-8v7q-w6rv, MODERATE) — process termination on invalid input.
+- **postcss** 8.5.18 → 8.5.28 — fixes **CVE-2026-69153** (GHSA-fxqj-rqcc-2cmp, MODERATE) — attacker-controlled `sourceMappingURL` could read arbitrary `.map` files when `from` is unset (#882).
+- **vitest** / **@vitest/mocker** 4.1.10 → 5.0.1 — fixes **CVE-2026-84373** (GHSA-82fw-gwwq-j7x9, MODERATE) — path traversal / arbitrary file read via the redirect mock (#971).
+- **undici** (scoped `overrides` pin under `node-gyp`, via `@lizenz/checker`) 6.28.0 → 6.29.0 — fixes **CVE-2026-85024** (GHSA-3wwx-pv8p-q78v), the same advisory as the production entry above (#1118).
+
+#### Container image
+
+- Docker base image: `apk upgrade` for Alpine's patched `openssl`/`expat` (Trivy #417, #361, #351, #364, #363); removed the base image's bundled npm CLI after `npm prune`, dropping its vendored `tar`/`ip-address`/`brace-expansion` copies (Trivy #350, #287, #286, #272) (#1113).
 
 ### Removed
 
@@ -18,55 +191,36 @@ Addresses dependency vulnerabilities flagged by `npm audit`.
   pinned compose file, links the sources by tag permalink, and spells out how to
   verify the result.
 
-### Fixed
+## [1.4.1 - 1.4.2] - 2026-08
 
-- **Documentation**: corrected `docs/SECRETS.md` §8, which presented the
-  `pg-to-sqlite` credential-logging issue as still open. It was real in
-  **v1.1.0–v1.3.1**, which printed the full `DATABASE_URL` (embedding
-  `user:password@host`), and was fixed in **v1.4.0** by commit `99984867`; §8
-  was never updated when that landed, and its line reference had drifted onto
-  the already-fixed line. §8 now states the affected range, the fix, and that
-  **operators who ran the migration on an affected tag and retained the logs
-  should rotate that Postgres password.**
+Hotfix releases addressing dependency vulnerabilities
 
 ### Security
 
-- **Dependency Vulnerabilities**: Fixed 5 known vulnerabilities in `fast-xml-parser`, `fast-uri`, `ip-address`, and `socket.io-parser`.
-- **Dependency Vulnerabilities**: Fixed 3 additional known vulnerabilities in `qs` and `js-yaml`, restoring a clean `npm audit` after the Vulnerability Scan CI job started failing (#997).
-- **Dependency Vulnerabilities**: Fixed a critical IP-spoofing vulnerability in `proxy-addr`, flagged by Aikido Intel.
+- **1.4.1 Dependency Vulnerabilities**: Fixed 6 known vulnerabilities in `brace-expansion` (3), `fast-xml-parser`, `js-yaml`, and `body-parser`, plus a devDependency-only fix in `fast-uri` and a second, devDependency-only resolution path for the `brace-expansion` advisories.
+- **1.4.2 Dependency Vulnerabilities**: Fixed 4 known vulnerabilities in `ip-address` (3) and `socket.io-parser`.
 
 ### Vulnerabilities Addressed
 
-- **proxy-addr** (npm `overrides` pin) 2.0.7 → 2.0.8 — fixes **CVE-2026-90711** ([AIKIDO-2026-101201](https://security.aikido.dev/cve/AIKIDO-2026-101201), CRITICAL) — an undersized IPv4-mapped IPv6 trust-subnet prefix (e.g. `::ffff:10.0.0.0/8` instead of `::ffff:10.0.0.0/104`) was accepted without error but trusted every IPv4 address on the internet, letting unauthenticated clients spoof `X-Forwarded-For` and bypass IP-based access controls, rate limiting, and audit logging, vulnerable range `>=1.1.0 <=2.0.7`. Reaches production via `express`, which pins `proxy-addr: ~2.0.7` (a range that otherwise excludes the fix).
-- **fast-xml-parser** 5.10.0 → 5.10.1 — fixes GHSA-8r6m-32jq-jx6q (no CVE assigned, HIGH) — a parsing issue in the 5.9.3–5.10.0 range fixed in 5.10.1.
-- **fast-uri** (npm `overrides` pin, dev-only via `secretlint` → `ajv`) 3.1.3 → 3.1.4 → 3.1.5 — the 3.1.4 → 3.1.5 bump fixes GHSA-7p8r-x3mc-p8w7 (HIGH) — host confusion via backslash authority introducer, vulnerable range `3.0.0 - 3.1.4`.
-- **ip-address** (transitive via `express-rate-limit` and `socks`) 10.2.0 → 10.4.0 — fixes GHSA-mwp4-54f8-5fhr (HIGH, SSRF/trust-boundary bypass via octal-decoded leading-zero octets), plus two moderate SSRF-adjacent advisories (GHSA-4xrf-jv44-h6hh, GHSA-22jq-vg5j-6vgg) already covered by the same bump. No `overrides` pin needed — `express-rate-limit`'s `^10.2.0` and `socks`'s `^10.1.1` ranges already permit 10.4.0.
-- **socket.io-parser** (npm `overrides` pin) 4.2.6 → 4.2.7 — fixes GHSA-2m8v-j782-fhvr (HIGH, CVSS 7.5) — zero-attachment memory exhaustion, vulnerable range `4.0.0 - <4.2.7`. Reaches production via `socket.io`/`socket.io-client` (real-time download-progress and notification updates).
-- **qs** (npm `overrides` pin) 6.15.2 → 6.16.0 — fixes GHSA-4mjr-xmp4-gh2g (MODERATE) — DoS via attacker-controlled `isBuffer`, vulnerable range `>=2.2.5 <6.16.0` — and GHSA-x5fp-wj9c-mxmx (MODERATE) — array-limit bypass via bracket-key comma parsing, vulnerable range `>=6.14.2 <=6.15.3`. Reaches production via `express`/`body-parser`, both of which pin `qs: ~6.15.1` (a range that otherwise excludes the fix); the same override also closes the gap in `openid`, `steam-web`, and `superagent` (#997).
-- **js-yaml** (npm `overrides` pin, dev-only, scoped to `@eslint/eslintrc`) 4.3.0 → 4.3.2 — fixes GHSA-5p4m-2wfm-xmqj (HIGH) — quadratic CPU consumption in `!!omap` resolution. Scoped rather than global so the already-unaffected top-level `js-yaml@5.3.0` is left untouched (#997).
+#### 1.4.1
 
-### Changed
-
-- Dependency updates: `undici` 7.29.0 → 8.9.0 (direct dependency, used by the SSRF-safe fetch wrapper in `server/ssrf.ts`). No vulnerability fix — see `docs/CVE_FIXES_BY_RELEASE.md` for verification. Major version bump; undici 8.9.0 requires Node `>=22.19.0`, so Questarr's own `engines.node` floor is raised from `>=20` to `>=22.19.0` to match — this only formalizes existing practice, since CI (`node-version: 26.x`) and the production Docker image (`node:26-alpine`) were already on Node 26. Full test suite and `server/__tests__/ssrf.test.ts` verified green against the new version.
-
-## [1.4.2] - 2026-08-11
-
-Hotfix release, tagged directly off `v1.4.1` rather than from `main` — not part of this branch's history. Fixed the same `ip-address` and `socket.io-parser` advisories independently patched above for `main`'s own accumulated changes (see the `[1.5.0]` entry). Full details in the `v1.4.2` tag and its own copy of this file.
-
-## [1.4.1] - 2026-08-02
-
-Hotfix release addressing dependency vulnerabilities flagged by `npm audit`.
-
-### Security
-
-- **Dependency Vulnerabilities**: Fixed 3 known vulnerabilities in `brace-expansion`, `js-yaml`, and `body-parser`, plus a second, devDependency-only resolution path for the same `brace-expansion` advisory.
-
-### Vulnerabilities Addressed
-
-- **brace-expansion** 5.0.7 → 5.0.8 — fixes **CVE-2026-14257** (GHSA-mh99-v99m-4gvg, HIGH) — DoS via unbounded expansion length causing an out-of-memory process crash.
-- **js-yaml** 5.2.1 → 5.2.2 — fixes GHSA-pm4m-ph32-ghv5 (no CVE assigned, HIGH) — exponential parsing time in flow collections leading to denial of service.
+- **brace-expansion** (npm `overrides` pin `^5.0.8`, resolved 5.0.9) 5.0.7 → 5.0.9 — fixes 3 HIGH CVEs:
+  - **CVE-2026-14257** (GHSA-mh99-v99m-4gvg) — DoS via unbounded expansion length causing an out-of-memory process crash
+  - **CVE-2026-13149** (GHSA-3jxr-9vmj-r5cp) — DoS via exponential-time expansion of consecutive non-expanding `{}` groups
+  - **CVE-2026-69152** (GHSA-rgw5-rvv9-x895) — DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation
+- **fast-xml-parser** 5.10.0 → 5.10.1 — fixes **CVE-2026-73569** (GHSA-8r6m-32jq-jx6q, HIGH) — repeated DOCTYPE declarations reset entity expansion limits.
+- **js-yaml** 5.2.1 → 5.2.2 — fixes **CVE-2026-73643** (GHSA-pm4m-ph32-ghv5, HIGH) — exponential parsing time in flow collections leading to denial of service.
 - **body-parser** 1.20.5 → 1.20.6 — fixes **CVE-2026-12590** (GHSA-v422-hmwv-36x6, LOW) — an invalid `limit` value silently disabled size enforcement, allowing arbitrarily large request payloads.
-- **minimatch** override pinned to `^10.2.5` — closes a second resolution path for **CVE-2026-14257** (GHSA-mh99-v99m-4gvg, HIGH): `eslint-plugin-react`'s bundled `minimatch@3.1.5` still pulled the vulnerable `brace-expansion@1.1.16`. devDependency-only (not shipped in the production image), but flagged by `npm audit` without `--omit=dev`, so pinned for a fully clean audit.
+- **fast-uri** (npm `overrides` pin, dev-only at the time) 3.1.3 → 3.1.4 — fixes **CVE-2026-16221** (GHSA-v2hh-gcrm-f6hx, HIGH) — host confusion via a literal backslash authority delimiter.
+- **minimatch** override pinned to `^10.2.5` — closes a second resolution path for the `brace-expansion` advisories: `eslint-plugin-react`'s bundled `minimatch@3.1.5` still pulled the vulnerable `brace-expansion@1.1.x`. devDependency-only (not shipped in the production image), but flagged by `npm audit` without `--omit=dev`, so pinned for a fully clean audit.
+
+#### 1.4.2
+
+- **ip-address** (transitive, via `express-rate-limit`) 10.2.0 → 10.5.0 — fixes 3 CVEs; no `overrides` pin needed, `express-rate-limit`'s `^8.5.2` range already permitted 10.5.0:
+  - **CVE-2026-69192** (GHSA-mwp4-54f8-5fhr, HIGH) — `Address4` decoded leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass
+  - **CVE-2026-54272** (GHSA-22jq-vg5j-6vgg, MODERATE) — misclassification of IPv4-mapped/NAT64 IPv6 addresses
+  - **CVE-2026-69198** (GHSA-4xrf-jv44-h6hh, MODERATE) — a CIDR suffix on the parsed address suppressed special-use classification
+- **socket.io-parser** (npm `overrides` pin) 4.2.6 → 4.2.7 — fixes **CVE-2026-69185** (GHSA-2m8v-j782-fhvr, HIGH, CVSS 7.5) — zero-attachment memory exhaustion, vulnerable range `4.0.0 - <4.2.7`. Reaches production via `socket.io`/`socket.io-client` (real-time download-progress and notification updates).
 
 ## [1.4.0] - 2026-07-16
 

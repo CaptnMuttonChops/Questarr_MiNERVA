@@ -54,18 +54,18 @@ A video game management application inspired by the -Arr apps (Sonarr, Radarr, P
 
 ## List of features
 
-| Feature                     | Description                                                                                                                                                                   |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Backlog management**      | Track your collection with status indicators (Wanted, Owned, Playing, Completed, Shelved), ratings, and notes.                                                                |
-| **Game Discovery**          | Browse popular, new, and upcoming titles via IGDB, RSS feeds, and xREL.to, or sync your Steam wishlist directly into the app.                                                 |
-| **Search & Filter**         | Find games by genre, platform, and keyword, with automatic search until a release is found, plus release blacklisting and preferred release groups/platforms.                 |
-| **Download Management**     | Integrates with indexers and downloaders with optional auto-download and automatic post-processing import.                                                                    |
-| **Real-time Notifications** | In-app alerts for releases and downloads, plus external notifications to 100+ providers via [Apprise](https://github.com/caronc/apprise).                                     |
-| **Rich Game Metadata**      | Details enriched with IGDB, Steam, PCGamingWiki, and NexusMods, including trending mods where available.                                                                      |
-| **Statistics**              | Visualize collection statistics with Discord sharing support. 🚧                                                                                                              |
+| Feature                     | Description                                                                                                                                                                                                                                                                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Backlog management**      | Track your collection with status indicators (Wanted, Owned, Playing, Completed, Shelved), ratings, and notes. A dedicated **Playing** page adds journal notes, a milestones checklist, screenshots, and Steam achievements per game, plus Crack status and Time to Beat (via IGDB) on the game detail page and a DLC/expansions tab. |
+| **Game Discovery**          | Browse popular, new, and upcoming titles via IGDB, RSS feeds, and xREL.to, or sync your Steam wishlist directly into the app. A per-platform **Root folder / Scan Disk** discovers games already on disk and reconciles their files. |
+| **Search & Filter**         | Find games by genre, platform, and keyword, with automatic search until a release is found, plus release blacklisting and preferred release groups/platforms. A Platforms setting scopes the whole app to your platform(s) of choice, with optional filters to hide shelved/owned games and age-restricted or erotic content. |
+| **Download Management**     | Integrates with indexers and downloaders with optional auto-download and automatic post-processing import, password-protected archive handling, optional pre-import VirusTotal/ClamAV scanning and optional "Powered by AI" workflow to improve game matches (using Typesafe's Jev, in BYOK) |
+| **Real-time Notifications** | In-app alerts for releases and downloads, plus external notifications to 100+ providers via [Apprise](https://github.com/caronc/apprise). |
+| **Rich Game Metadata**      | Details enriched with IGDB, Steam, PCGamingWiki, and NexusMods, including trending mods where available. |
+| **Statistics**              | Visualize collection statistics with Discord sharing support. 🚧 |
 | **Security Focused**        | General security hardening, SSL support, and [OpenSSF certified](https://www.bestpractices.dev/projects/13450) — see [SECURITY.md](.github/SECURITY.md) for the full process. |
-| **Integrations**            | One-click install on UNRAID, CasaOS, Umbrel and Cosmos Cloud, a Home Assistant add-on, and a Helm chart for Kubernetes. 🚧                                                    |
-| **Design**                  | Clean, minimalist, dark-first UI built with mobile usage in mind.                                                                                                             |
+| **Integrations**            | One-click install on UNRAID, CasaOS, Umbrel and Cosmos Cloud, a Home Assistant add-on, a Windows installer, and a Helm chart for Kubernetes, plus a [Playnite extension](extensions/playnite-questarr/README.md) to sync your library and request games from the couch. 🚧 |
+| **Design**                  | Clean, minimalist, dark-first UI built with mobile usage in mind. |
 
 ### Supported Indexers/Downloaders
 
@@ -132,6 +132,20 @@ docker run -d -p 5000:5000 -v ./data:/app/data --name questarr ghcr.io/doezer/qu
    Switching an existing SQLite install to Postgres does not move your data —
    run `scripts/sqlite-to-pg.ts` to bring your library across. See
    [docs/DATABASE.md](docs/DATABASE.md).
+
+### Windows (installer)
+
+<details>
+<summary><b>Install via the Windows installer (.exe)</b></summary>
+
+Prefer running Questarr as a native Windows service instead of Docker? Download
+`QuestarrSetup-<version>-windows-x64.exe` from the
+[latest GitHub release](https://github.com/Doezer/Questarr/releases/latest) and
+run it. The installer bundles Node.js, installs Questarr as a Windows service
+(`Questarr.Service.exe`), and starts it automatically — open
+`http://localhost:5000` once it finishes.
+
+</details>
 
 ### Proxmox VE (LXC)
 
@@ -452,8 +466,8 @@ Based on the [Product Requirements Document](docs/PRD.md), here's what's planned
 - **P2 — Direct Download Support**: Add debrid services (Real-Debrid and similar) as a downloader option, no seeding required.
 - **P3 — External Library Sync**: Import owned games from Steam/GOG libraries and local filesystem scans, not just wishlists.
 - **P4 — Integrations with External Tools**: ✅ Playnite extension shipped (library sync, request-to-download); RomM, Gameyfin, and a generic webhook for anything not explicitly supported are still planned.
-- **P5 — Indexer Page Links**: A "View on indexer" link on search results and downloads.
-- **P6 — PostgreSQL Support**: Re-introduce PostgreSQL as an optional backend, with SQLite remaining the zero-config default.
+- ✅ **P5 — Indexer Page Links**: A "View on indexer" link on search results and downloads.
+- ✅ **P6 — PostgreSQL Support**: PostgreSQL is available as an optional backend, with SQLite remaining the zero-config default.
 
 **Ongoing:** mobile responsiveness, search UX, performance, and security improvements.
 

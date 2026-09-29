@@ -61,26 +61,63 @@ No dependency bump in this release crosses a `fixed` OSV boundary — purely mai
 
 ## v1.4.1 (from v1.4.0) — hotfix
 
-- **brace-expansion** (transitive, via `archiver` → `readdir-glob` → `minimatch`) 5.0.7 → 5.0.8 — fixes **CVE-2026-14257** (GHSA-mh99-v99m-4gvg, HIGH) — the `expand()` function didn't bound individual result string lengths; chaining brace groups (e.g. `'{a,b}'.repeat(1500)`) could exhaust memory and crash the process with an uncatchable error. 5.0.8 adds a `maxLength` option (default 4,000,000 characters).
-- **js-yaml** 5.2.1 → 5.2.2 — fixes GHSA-pm4m-ph32-ghv5 (no CVE assigned, HIGH) — flow-collection entries were parsed multiple times, giving O(2^n) parse time relative to nesting depth; a payload under 200 bytes could hang the event loop.
-- **body-parser** 1.20.5 → 1.20.6 — fixes **CVE-2026-12590** (GHSA-v422-hmwv-36x6, LOW) — an invalid `limit` value (unparseable string or `NaN`) made `bytes.parse()` return `null`, silently disabling size enforcement and allowing arbitrarily large request bodies. Fixed version throws at parser initialization instead.
-- **minimatch** (devDep-only, transitive via `eslint-plugin-react` → bundled `minimatch@3.1.5`) — new `overrides` pin to `^10.2.5` closes a second resolution path for **CVE-2026-14257** (GHSA-mh99-v99m-4gvg, HIGH), the same brace-expansion advisory fixed above via the `archiver` chain. Not shipped in the production image, but `npm audit` (without `--omit=dev`) still flagged it, so pinned for a fully clean audit.
+- **brace-expansion** (npm `overrides` pin `^5.0.8`, resolved 5.0.9) 5.0.7 → 5.0.9 — fixes 3 HIGH CVEs:
+  - **CVE-2026-14257** (GHSA-mh99-v99m-4gvg) — DoS via unbounded expansion length causing an out-of-memory process crash
+  - **CVE-2026-13149** (GHSA-3jxr-9vmj-r5cp) — DoS via exponential-time expansion of consecutive non-expanding `{}` groups
+  - **CVE-2026-69152** (GHSA-rgw5-rvv9-x895) — DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation
+- **fast-xml-parser** 5.10.0 → 5.10.1 — fixes **CVE-2026-73569** (GHSA-8r6m-32jq-jx6q, HIGH) — repeated DOCTYPE declarations reset entity expansion limits.
+- **js-yaml** 5.2.1 → 5.2.2 — fixes **CVE-2026-73643** (GHSA-pm4m-ph32-ghv5, HIGH) — exponential parsing time in flow collections leading to denial of service.
+- **body-parser** 1.20.5 → 1.20.6 — fixes **CVE-2026-12590** (GHSA-v422-hmwv-36x6, LOW) — an invalid `limit` value silently disabled size enforcement, allowing arbitrarily large request payloads.
+- **fast-uri** (npm `overrides` pin, dev-only at the time) 3.1.3 → 3.1.4 — fixes **CVE-2026-16221** (GHSA-v2hh-gcrm-f6hx, HIGH) — host confusion via a literal backslash authority delimiter.
+- **minimatch** override pinned to `^10.2.5` — closes a second resolution path for the `brace-expansion` advisories: `eslint-plugin-react`'s bundled `minimatch@3.1.5` still pulled the vulnerable `brace-expansion@1.1.x`. devDependency-only (not shipped in the production image), but flagged by `npm audit` without `--omit=dev`, so pinned for a fully clean audit.
 
-## v1.4.2 (from v1.4.1) — hotfix tag, not part of this branch's history
+## v1.4.2 (from v1.4.1) — hotfix
 
-Tagged directly off `v1.4.1`, not from `main` — fixed `ip-address` (10.2.0 →
-10.5.0) and `socket.io-parser` (4.2.6 → 4.2.7), the same two advisories
-`main` independently patches below in the `v1.5.0` entry. Skipped in this
-diff-based report since it isn't reachable from `main`'s commit history; see
-the `v1.4.2` tag and its own copy of this file for the full record.
+Tagged directly off `v1.4.1`, not from `main`; `main` picked up the same fixes independently.
 
-## v1.5.0 (from v1.4.1, via main)
+- **ip-address** (transitive, via `express-rate-limit`) 10.2.0 → 10.5.0 — fixes 3 CVEs; no `overrides` pin needed, `express-rate-limit`'s `^8.5.2` range already permitted 10.5.0:
+  - **CVE-2026-69192** (GHSA-mwp4-54f8-5fhr, HIGH) — `Address4` decoded leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass
+  - **CVE-2026-54272** (GHSA-22jq-vg5j-6vgg, MODERATE) — misclassification of IPv4-mapped/NAT64 IPv6 addresses
+  - **CVE-2026-69198** (GHSA-4xrf-jv44-h6hh, MODERATE) — a CIDR suffix on the parsed address suppressed special-use classification
+- **socket.io-parser** (npm `overrides` pin) 4.2.6 → 4.2.7 — fixes **CVE-2026-69185** (GHSA-2m8v-j782-fhvr, HIGH, CVSS 7.5) — zero-attachment memory exhaustion, vulnerable range `4.0.0 - <4.2.7`. Reaches production via `socket.io`/`socket.io-client` (real-time download-progress and notification updates).
 
-- **fast-xml-parser** 5.10.0 → 5.10.1 — fixes GHSA-8r6m-32jq-jx6q (no CVE assigned, HIGH, CVSS 8.7) — vulnerable range `>=5.9.3 <5.10.1`; the direct-dependency range `^5.10.0` still permitted the unpatched `5.10.0`, so the fix required a `package.json` bump, not just a lockfile refresh.
-- **fast-uri** (npm `overrides` pin, dev-only via `secretlint` → `ajv`) 3.1.3 → 3.1.4 → 3.1.5 — fixes **CVE-2026-16221** (GHSA-v2hh-gcrm-f6hx, HIGH, fixed by the 3.1.3→3.1.4 leg) and GHSA-7p8r-x3mc-p8w7 (HIGH, host confusion via backslash authority introducer, vulnerable range `3.0.0 - 3.1.4`, fixed by the 3.1.4→3.1.5 leg). Doesn't reach production, but forced past both vulnerable ranges out of caution.
-- **ip-address** (transitive, via `express-rate-limit` and `socks`) 10.2.0 → 10.4.0 — fixes GHSA-mwp4-54f8-5fhr (HIGH) — `Address4` decoded leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass; vulnerable range `<=10.3.0`. Also crosses the `fixed` boundary for two moderate SSRF-adjacent advisories, GHSA-4xrf-jv44-h6hh and GHSA-22jq-vg5j-6vgg. No `overrides` pin added — `express-rate-limit`'s `^10.2.0` and `socks`'s `^10.1.1` ranges already permit 10.4.0, so a lockfile-only bump (`npm update ip-address`) was sufficient.
-- **socket.io-parser** (npm `overrides` pin) 4.2.6 → 4.2.7 — fixes GHSA-2m8v-j782-fhvr (HIGH, CVSS 7.5) — zero-attachment memory exhaustion; vulnerable range `4.0.0 - <4.2.7`. Reaches production via `socket.io`/`socket.io-client`, used for real-time download-progress and notification updates. `server/__tests__/socket.test.ts` verified green against the new version.
-- **undici** 7.29.0 → 8.9.0 (direct dependency; used by the SSRF-safe fetch wrapper in `server/ssrf.ts`) — despite the release notes headlining "Security fixes," none apply here: all five advisories fixed in 8.9.0 (GHSA-4cwx-7wf7-3272, GHSA-m8rv-5g2x-5cg5, GHSA-jr45-8vmc-qm54, GHSA-8xcm-r25x-g524, GHSA-v3r7-h72x-cjcm) list vulnerable ranges of `7.0.0 < 7.29.0` / `8.0.0 < 8.9.0` — Questarr was already on the patched `7.29.0` and was never affected. This bump doesn't cross an OSV `fixed` boundary; it's a routine major-version chore. Verified compatible: full test suite (2033 tests) and `server/__tests__/ssrf.test.ts` (28 tests, covering the `Agent`/pinned-`lookup` DNS-rebinding defense) pass unchanged against 8.9.0, despite v8's breaking changes (HTTP/2 default, dispatcher isolation, Node engine floor raised to `>=22.19.0`).
+## v1.5.0 (from v1.4.2)
+
+Regenerated on 2026-09-29 with `node scripts/cve-report.mjs v1.4.2 HEAD` (plus `v1.4.0 v1.4.1` and `v1.4.1 v1.4.2` for the hotfixes above). Fixes that already shipped in v1.4.1/v1.4.2 are not repeated here, even where `main` re-applied them.
+
+### Production dependencies
+
+- **proxy-addr** (npm `overrides` pin) 2.0.7 → 2.0.8 — fixes **CVE-2026-90711** ([AIKIDO-2026-101201](https://security.aikido.dev/cve/AIKIDO-2026-101201), CRITICAL) — an undersized IPv4-mapped IPv6 trust-subnet prefix (e.g. `::ffff:10.0.0.0/8` instead of `::ffff:10.0.0.0/104`) was accepted without error but trusted every IPv4 address on the internet, letting unauthenticated clients spoof `X-Forwarded-For` and bypass IP-based access controls, rate limiting, and audit logging, vulnerable range `>=1.1.0 <=2.0.7`. Reaches production via `express`, which pins `proxy-addr: ~2.0.7` (a range that otherwise excludes the fix). Not yet indexed by OSV.dev, so absent from the script output.
+- **fast-uri** (npm `overrides` pin) 3.1.4 → 3.1.7 — fixes 6 HIGH advisories (#879, #981). Reaches production through `ajv`, an optional peer of `@hookform/resolvers` (and dev-only through `secretlint`):
+  - **CVE-2026-18446** (GHSA-7p8r-x3mc-p8w7) — host confusion via backslash authority introducer (fixed in 3.1.5)
+  - **CVE-2026-75931** (GHSA-5jgf-p345-68v8) — host confusion via skipped IDN canonicalization on scheme-relative references
+  - **CVE-2026-76172** (GHSA-jqff-g426-hqxp) — host confusion via percent-encoded scheme normalization
+  - **CVE-2026-75975** (GHSA-f65p-4m7j-42xc) — SSRF via malformed IPv6 normalization
+  - **CVE-2026-75899** (GHSA-fph4-wmhf-6fwf) — SSRF via repeated hostname percent-decoding
+  - **CVE-2026-84292** (GHSA-qw65-cvwx-89v3) — authority injection via an unvalidated port in `serialize`
+- **multer** 2.2.0 → 2.4.0 — fixes 5 CVEs (#1000, #1066):
+  - **CVE-2026-82333** (GHSA-535w-7cp7-47q4, HIGH) — DoS via oversized array index in field names
+  - **CVE-2026-77037** (GHSA-qfvm-cv95-jqjf, HIGH) — DoS via file descriptor leak on aborted uploads
+  - **CVE-2026-77078** (GHSA-wc9g-mqfw-jrwm, HIGH) — DoS via crafted multipart field names
+  - **CVE-2026-88932** (GHSA-3pph-fpjx-jg34, MODERATE) — DoS via orphaned disk writes on aborted uploads (fixed in 2.4.0)
+  - **CVE-2026-77063** (GHSA-qvfw-j98x-7q72, LOW) — file size limit bypass via async `fileFilter` race condition
+- **ip-address** (npm `overrides` pin, transitive via `express-rate-limit` and `socks`) 10.5.0 → 10.7.2 — fixes **CVE-2026-101913** (GHSA-rpw4-54j3-4h4q, MODERATE) — `Address6.isLinkLocal()` recognized `fe80::/64` rather than `fe80::/10` — and **CVE-2026-101910** (GHSA-2vr4-cq9g-pvrc, MODERATE) — the NAT64 local-use range `64:ff9b:1::/48` was not classified; both allowed SSRF and trust-boundary bypass (#1118).
+- **qs** (npm `overrides` pin) 6.15.2 → 6.16.0 — fixes **CVE-2026-82417** (GHSA-4mjr-xmp4-gh2g, MODERATE) — DoS via attacker-controlled `isBuffer`, vulnerable range `>=2.2.5 <6.16.0` — and **CVE-2026-82562** (GHSA-x5fp-wj9c-mxmx, MODERATE) — array-limit bypass via bracket-key comma parsing, vulnerable range `>=6.14.2 <=6.15.3`. Reaches production via `express`/`body-parser`, both of which pin `qs: ~6.15.1` (a range that otherwise excludes the fix); the same override also closes the gap in `openid`, `steam-web`, and `superagent` (#997).
+- **undici** (direct dependency) 8.10.0 → 8.10.2 — fixes **CVE-2026-85024** (GHSA-3wwx-pv8p-q78v, MODERATE) — DoS via an unhandled error in WebSocket permessage-deflate decompression (#1028). The earlier 7.29.0 → 8.9.0 major bump crossed no fix boundary (see Changed). Before it became a direct dependency, `undici` was only a dev-only transitive of `jsdom`, whose 7.28.0 → 7.29.0 refresh fixed CVE-2026-13697, CVE-2026-16728, CVE-2026-14643, CVE-2026-15157 and CVE-2026-16729 in test tooling.
+
+### Development dependencies (not shipped in the production image)
+
+- **js-yaml** (npm `overrides` pin, scoped to `@eslint/eslintrc`, and the other nested 4.x copies) 4.3.0 → 4.3.2 — fixes GHSA-5p4m-2wfm-xmqj (no CVE assigned, HIGH) — quadratic CPU consumption in `!!omap` resolution — and **CVE-2026-84375** (GHSA-2883-xcg3-v3hh, HIGH) — `maxTotalMergeKeys` did not limit CPU use for empty merge sources (#894, #997, #998). The top-level `js-yaml` 5.x used in production was already unaffected.
+- **nanoid** (nested under `postcss`) 3.3.12 → 3.3.18 — fixes **CVE-2026-67214** (GHSA-28wg-ghj8-5hjv, HIGH) and **CVE-2026-67213** (GHSA-2v37-7h3g-55p8, HIGH) — generators could loop indefinitely with a negative or zero size (#917). The production `nanoid` 6.x was never affected.
+- **browserslist** 4.28.4 → 4.28.9 — fixes **CVE-2026-73088** (GHSA-73wf-gq98-2v4g, HIGH) — crash / prototype write via untrusted custom stats — and **CVE-2026-73089** (GHSA-c83g-rgw3-j3cx, HIGH) — unbounded memory growth via distinct query results.
+- **baseline-browser-mapping** 2.10.40 → 2.11.21 — fixes **CVE-2026-45819** (GHSA-w5vr-8v7q-w6rv, MODERATE) — process termination on invalid input.
+- **postcss** 8.5.18 → 8.5.28 — fixes **CVE-2026-69153** (GHSA-fxqj-rqcc-2cmp, MODERATE) — attacker-controlled `sourceMappingURL` could read arbitrary `.map` files when `from` is unset (#882).
+- **vitest** / **@vitest/mocker** 4.1.10 → 5.0.1 — fixes **CVE-2026-84373** (GHSA-82fw-gwwq-j7x9, MODERATE) — path traversal / arbitrary file read via the redirect mock (#971).
+- **undici** (scoped `overrides` pin under `node-gyp`, via `@lizenz/checker`) 6.28.0 → 6.29.0 — fixes **CVE-2026-85024** (GHSA-3wwx-pv8p-q78v), the same advisory as the production entry above (#1118).
+
+### Container image
+
+- Docker base image: `apk upgrade` for Alpine's patched `openssl`/`expat` (Trivy #417, #361, #351, #364, #363); removed the base image's bundled npm CLI after `npm prune`, dropping its vendored `tar`/`ip-address`/`brace-expansion` copies (Trivy #350, #287, #286, #272) (#1113).
 
 ---
 
@@ -91,4 +128,3 @@ Checked per the "each bumped package" instruction, but these tools run only at b
 - **vite** 5.4.21 → 8.0.9 (v1.3.0) fixed **CVE-2026-39365** (path traversal in optimized-deps `.map` handling). Two Windows-dev-server-only issues remain open through 8.0.12: CVE-2026-53571 (`server.fs.deny` bypass) and CVE-2026-53632 (launch-editor NTLMv2 hash disclosure via UNC path).
 - **esbuild** 0.27.2 → 0.27.3 (v1.2.1) actually _introduced_ a still-open, no-CVE-assigned advisory (GHSA-g7r4-m6w7-qqqr, dev-server arbitrary file read on Windows) — never fixed by the later 0.28.0 bump.
 - **postcss** 8.4.47 → 8.5.10 (v1.3.0) fixed **CVE-2026-41305** (XSS via unescaped `</style>` in stringify output) — relevant only if user-controlled CSS is ever processed at build time, which it isn't here.
-- **fast-uri** (npm `overrides` pin) 3.1.3 → 3.1.4 (v1.4.1) fixed **CVE-2026-16221** (GHSA-v2hh-gcrm-f6hx, HIGH, CVSS 7.5). Only reachable via `secretlint` → `ajv@8.20.0`'s nested `fast-uri: ^3.0.1` dependency (a dev-only tool invoked by `npm run secretlint`); never bundled into the production build.

@@ -2,8 +2,8 @@
 
 Method: same as [`docs/CVE_FIXES_BY_RELEASE.md`](CVE_FIXES_BY_RELEASE.md) — diffed `package-lock.json` at each
 tag boundary and cross-checked every bumped package through OSV.dev. Each advisory is then mapped to its CWE
-IDs sourced from the `database_specific.cwes` field in the OSV.dev response (e.g.
-`[{"cwe_id": "CWE-400", "name": "Uncontrolled Resource Consumption"}, ...]`). The script that automates this
+IDs sourced from the `database_specific.cwe_ids` field in the OSV.dev response (e.g. `["CWE-400", "CWE-770"]`;
+older records used `database_specific.cwes`). The script that automates this
 process is `scripts/cwe-report.mjs`.
 
 This document gives a **weakness-category view** of what was addressed across releases — useful for tracking
@@ -170,54 +170,153 @@ No dependency bump in this release crosses a `fixed` OSV boundary — no CWE fix
 
 ## v1.4.1 (from v1.4.0) — hotfix
 
-### CWE-20: Improper Input Validation
+### CWE-400: Uncontrolled Resource Consumption
 
-- **body-parser** 1.20.5 → 1.20.6 — CVE-2026-12590 — passing an unparseable string or `NaN` as the `limit`
-  option made `bytes.parse()` return `null`; the middleware silently disabled size enforcement, allowing
-  arbitrarily large request bodies through to route handlers.
+- **brace-expansion 5.0.7 → 5.0.9** — CVE-2026-14257 (GHSA-mh99-v99m-4gvg) — brace-expansion DoS via unbounded expansion length causing an out-of-memory process crash
+- **brace-expansion 5.0.7 → 5.0.9** — CVE-2026-13149 (GHSA-3jxr-9vmj-r5cp) —
+- **brace-expansion 5.0.7 → 5.0.9** — CVE-2026-69152 (GHSA-rgw5-rvv9-x895) — brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation
 
-### CWE-674: Uncontrolled Recursion _(devDep)_
+### CWE-407: Inefficient Algorithmic Complexity
 
-- **js-yaml** 5.2.1 → 5.2.2 — GHSA-pm4m-ph32-ghv5 — flow-collection entries were re-parsed on each recursion
-  level, producing 2^n parse time; a 200-byte payload was sufficient to hang the event loop.
+- **brace-expansion 5.0.7 → 5.0.9** — CVE-2026-13149 (GHSA-3jxr-9vmj-r5cp) —
+- **js-yaml 5.2.1 → 5.2.2** — CVE-2026-73643 (GHSA-pm4m-ph32-ghv5) — js-yaml: Exponential parsing time in the flow collections leads to denial of service
+
+### CWE-436: Interpretation Conflict
+
+- **fast-uri 3.1.3 → 3.1.4** — CVE-2026-16221 (GHSA-v2hh-gcrm-f6hx) — fast-uri vulnerable to host confusion via literal backslash authority delimiter _(devDep)_
 
 ### CWE-770: Allocation of Resources Without Limits or Throttling
 
-- **brace-expansion** 5.0.7 → 5.0.8 — CVE-2026-14257 — the `expand()` function imposed no limit on the length
-  of individual result strings; chaining brace groups (e.g. `{a,b}` repeated 1 500 times) exhausted memory
-  with an uncatchable error before the count guard fired. 5.0.8 adds a `maxLength` cap defaulting to 4 000 000
-  characters. _(Also pinned for the `minimatch@3.x` chain via `overrides` — devDep only.)_
+- **brace-expansion 5.0.7 → 5.0.9** — CVE-2026-14257 (GHSA-mh99-v99m-4gvg) — brace-expansion DoS via unbounded expansion length causing an out-of-memory process crash
+- **brace-expansion 5.0.7 → 5.0.9** — CVE-2026-69152 (GHSA-rgw5-rvv9-x895) — brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation
+- **body-parser 1.20.5 → 1.20.6** — CVE-2026-12590 (GHSA-v422-hmwv-36x6) — body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement
+
+### CWE-776: Improper Restriction of Recursive Entity References in DTDs ('XML Entity Expansion')
+
+- **fast-xml-parser 5.10.0 → 5.10.1** — CVE-2026-73569 (GHSA-8r6m-32jq-jx6q) — fast-xml-parser: Repeated DOCTYPE declarations reset entity expansion limits
 
 ---
 
-## v1.4.2 (from v1.4.1) — hotfix tag off v1.4.1, not reachable from main
+## v1.4.2 (from v1.4.1) — hotfix tag off v1.4.1
 
-Fixed the same two advisories as v1.5.0 below (ip-address and socket.io-parser). Skipped in this diff-based
-report; see the v1.4.2 tag for the full record.
+### CWE-20: Improper Input Validation
 
----
+- **ip-address 10.2.0 → 10.5.0** — CVE-2026-69192 (GHSA-mwp4-54f8-5fhr) — ip-address: Address4 decodes leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass
+- **ip-address 10.2.0 → 10.5.0** — CVE-2026-54272 (GHSA-22jq-vg5j-6vgg) — ip-address: Misclassification of IPv4-mapped/NAT64 IPv6 addresses can bypass SSRF and trust-boundary checks
+- **ip-address 10.2.0 → 10.5.0** — CVE-2026-69198 (GHSA-4xrf-jv44-h6hh) — ip-address: a CIDR suffix on the parsed address suppresses special-use classification and can bypass SSRF and trust-boundary checks
+- **socket.io-parser 4.2.6 → 4.2.7** — CVE-2026-69185 (GHSA-2m8v-j782-fhvr) — Socket.IO: Zero-attachment Memory Exhaustion
 
-## v1.5.0 (from v1.4.1, via main)
+### CWE-754: Improper Check for Unusual or Exceptional Conditions
 
-### CWE-400: Uncontrolled Resource Consumption
-
-- **socket.io-parser** 4.2.6 → 4.2.7 — GHSA-2m8v-j782-fhvr — an attacker could emit a message carrying zero
-  binary attachments but a non-zero `attachments` count, causing the parser to hold buffered data indefinitely
-  and exhaust memory over repeated messages.
-- **fast-xml-parser** 5.10.0 → 5.10.1 — GHSA-8r6m-32jq-jx6q — DoS via a crafted input pattern; fix required
-  a `package.json` bump since the direct-dependency range `^5.10.0` still permitted the unpatched `5.10.0`.
+- **socket.io-parser 4.2.6 → 4.2.7** — CVE-2026-69185 (GHSA-2m8v-j782-fhvr) — Socket.IO: Zero-attachment Memory Exhaustion
 
 ### CWE-918: Server-Side Request Forgery (SSRF)
 
-- **ip-address** 10.2.0 → 10.4.0 — GHSA-mwp4-54f8-5fhr — `Address4` decoded leading-zero octets as decimal
-  while OS resolvers treat them as octal (e.g. `010` → decimal 10 vs. octal 8); a crafted IP literal could
-  bypass SSRF allow-lists and trust-boundary checks that relied on `ip-address` for normalisation. Two
-  moderate SSRF-adjacent advisories (GHSA-4xrf-jv44-h6hh, GHSA-22jq-vg5j-6vgg) also fall inside the same
-  bump range.
-- **fast-uri** 3.1.3 → 3.1.5 — CVE-2026-16221 / GHSA-7p8r-x3mc-p8w7 — host-component parsing accepted a
-  backslash as an authority introducer in some URI schemes, causing the parsed host to differ from what
-  browsers and HTTP clients resolved; exploitable for host-confusion SSRF and redirect attacks _(devDep
-  only via `secretlint` → `ajv`; pinned for hygiene)_.
+- **ip-address 10.2.0 → 10.5.0** — CVE-2026-69192 (GHSA-mwp4-54f8-5fhr) — ip-address: Address4 decodes leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass
+- **ip-address 10.2.0 → 10.5.0** — CVE-2026-54272 (GHSA-22jq-vg5j-6vgg) — ip-address: Misclassification of IPv4-mapped/NAT64 IPv6 addresses can bypass SSRF and trust-boundary checks
+- **ip-address 10.2.0 → 10.5.0** — CVE-2026-69198 (GHSA-4xrf-jv44-h6hh) — ip-address: a CIDR suffix on the parsed address suppresses special-use classification and can bypass SSRF and trust-boundary checks
+
+---
+
+## v1.5.0 (from v1.4.2)
+
+`proxy-addr` 2.0.7 → 2.0.8 (CVE-2026-90711, CRITICAL) is not yet indexed by OSV.dev, so it carries no CWE here; the Docker base-image fixes (#1113) are OS packages, outside this npm report.
+
+### CWE-20: Improper Input Validation
+
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-75975 (GHSA-f65p-4m7j-42xc) — fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization
+
+### CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')
+
+- **postcss 8.5.18 → 8.5.28** — CVE-2026-69153 (GHSA-fxqj-rqcc-2cmp) — PostCSS: incomplete fix of CVE-2026-45623 — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset _(devDep)_
+- **vitest / @vitest/mocker 4.1.10 → 5.0.1** — CVE-2026-84373 (GHSA-82fw-gwwq-j7x9) — Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock _(devDep)_
+
+### CWE-116: Improper Encoding or Escaping of Output
+
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-84292 (GHSA-qw65-cvwx-89v3) — fast-uri vulnerable to authority injection via an unvalidated port in serialize
+
+### CWE-174: Double Decoding of the Same Data
+
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-75899 (GHSA-fph4-wmhf-6fwf) — fast-uri vulnerable to server-side request forgery via repeated hostname percent-decoding
+
+### CWE-177: Improper Handling of URL Encoding (Hex Encoding)
+
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-76172 (GHSA-jqff-g426-hqxp) — fast-uri vulnerable to host confusion via percent-encoded scheme normalization
+
+### CWE-200: Exposure of Sensitive Information to an Unauthorized Actor
+
+- **postcss 8.5.18 → 8.5.28** — CVE-2026-69153 (GHSA-fxqj-rqcc-2cmp) — PostCSS: incomplete fix of CVE-2026-45623 — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset _(devDep)_
+
+### CWE-248: Uncaught Exception
+
+- **multer 2.2.0 → 2.4.0** — CVE-2026-77078 (GHSA-wc9g-mqfw-jrwm) — multer vulnerable to Denial of Service via crafted multipart field names
+- **qs 6.15.2 → 6.16.0** — CVE-2026-82417 (GHSA-4mjr-xmp4-gh2g) — qs.stringify throws TypeError on objects with a non-callable constructor.isBuffer property
+- **undici 8.10.0 → 8.10.2** — CVE-2026-85024 (GHSA-3wwx-pv8p-q78v) — undici vulnerable to Denial of Service via unhandled error in WebSocket permessage-deflate decompression
+- **browserslist 4.28.4 → 4.28.9** — CVE-2026-73088 (GHSA-73wf-gq98-2v4g) — Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats) _(devDep)_
+- **undici (node-gyp) 6.28.0 → 6.29.0** — CVE-2026-85024 (GHSA-3wwx-pv8p-q78v) — undici vulnerable to Denial of Service via unhandled error in WebSocket permessage-deflate decompression _(devDep)_
+
+### CWE-362: Race Condition
+
+- **multer 2.2.0 → 2.4.0** — CVE-2026-77063 (GHSA-qvfw-j98x-7q72) — multer vulnerable to file size limit bypass via async fileFilter race condition
+
+### CWE-400: Uncontrolled Resource Consumption
+
+- **multer 2.2.0 → 2.4.0** — CVE-2026-82333 (GHSA-535w-7cp7-47q4) — multer vulnerable to Denial of Service via oversized array index in field names
+- **multer 2.2.0 → 2.4.0** — CVE-2026-77037 (GHSA-qfvm-cv95-jqjf) — multer vulnerable to Denial of Service via file descriptor leak on aborted uploads
+- **multer 2.2.0 → 2.4.0** — CVE-2026-88932 (GHSA-3pph-fpjx-jg34) — multer vulnerable to Denial of Service via orphaned disk writes on aborted uploads
+- **js-yaml 4.3.0 → 4.3.2** — CVE-2026-84375 (GHSA-2883-xcg3-v3hh) — js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources _(devDep)_
+
+### CWE-407: Inefficient Algorithmic Complexity
+
+- **js-yaml 4.3.0 → 4.3.2** — GHSA-5p4m-2wfm-xmqj — JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported _(devDep)_
+- **js-yaml 4.3.0 → 4.3.2** — CVE-2026-84375 (GHSA-2883-xcg3-v3hh) — js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources _(devDep)_
+
+### CWE-436: Interpretation Conflict
+
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-18446 (GHSA-7p8r-x3mc-p8w7) — fast-uri vulnerable to host confusion via backslash authority introducer
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-75931 (GHSA-5jgf-p345-68v8) — fast-uri vulnerable to host confusion via skipped IDN canonicalization on scheme-relative references
+
+### CWE-459: Incomplete Cleanup
+
+- **multer 2.2.0 → 2.4.0** — CVE-2026-77037 (GHSA-qfvm-cv95-jqjf) — multer vulnerable to Denial of Service via file descriptor leak on aborted uploads
+- **multer 2.2.0 → 2.4.0** — CVE-2026-88932 (GHSA-3pph-fpjx-jg34) — multer vulnerable to Denial of Service via orphaned disk writes on aborted uploads
+
+### CWE-697: Incorrect Comparison
+
+- **ip-address 10.5.0 → 10.7.2** — CVE-2026-101913 (GHSA-rpw4-54j3-4h4q) — ip-address: Address6.isLinkLocal() recognizes fe80::/64 rather than fe80::/10, allowing SSRF and trust-boundary bypass to on-link hosts
+
+### CWE-703: Improper Check or Handling of Exceptional Conditions
+
+- **qs 6.15.2 → 6.16.0** — CVE-2026-82417 (GHSA-4mjr-xmp4-gh2g) — qs.stringify throws TypeError on objects with a non-callable constructor.isBuffer property
+
+### CWE-705: Incorrect Control Flow Scoping
+
+- **baseline-browser-mapping 2.10.40 → 2.11.21** — CVE-2026-45819 (GHSA-w5vr-8v7q-w6rv) — _(devDep)_
+
+### CWE-755: Improper Handling of Exceptional Conditions
+
+- **baseline-browser-mapping 2.10.40 → 2.11.21** — CVE-2026-45819 (GHSA-w5vr-8v7q-w6rv) — _(devDep)_
+
+### CWE-770: Allocation of Resources Without Limits or Throttling
+
+- **qs 6.15.2 → 6.16.0** — CVE-2026-82562 (GHSA-x5fp-wj9c-mxmx) — qs.parse does not enforce arrayLimit on comma groups under bracket-push keys when throwOnLimitExceeded is set (incomplete fix for CVE-2026-2391)
+- **browserslist 4.28.4 → 4.28.9** — CVE-2026-73089 (GHSA-c83g-rgw3-j3cx) — Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM _(devDep)_
+
+### CWE-835: Loop with Unreachable Exit Condition ('Infinite Loop')
+
+- **nanoid 3.3.12 → 3.3.18** — CVE-2026-67214 (GHSA-28wg-ghj8-5hjv) — nanoid Infinite Loop via Negative Size in non-secure module _(devDep)_
+- **nanoid 3.3.12 → 3.3.18** — CVE-2026-67213 (GHSA-2v37-7h3g-55p8) — nanoid before 5.1.6 Infinite Loop via Zero Size in customAlphabet and customRandom _(devDep)_
+
+### CWE-918: Server-Side Request Forgery (SSRF)
+
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-75975 (GHSA-f65p-4m7j-42xc) — fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization
+- **fast-uri 3.1.4 → 3.1.7** — CVE-2026-75899 (GHSA-fph4-wmhf-6fwf) — fast-uri vulnerable to server-side request forgery via repeated hostname percent-decoding
+- **ip-address 10.5.0 → 10.7.2** — CVE-2026-101913 (GHSA-rpw4-54j3-4h4q) — ip-address: Address6.isLinkLocal() recognizes fe80::/64 rather than fe80::/10, allowing SSRF and trust-boundary bypass to on-link hosts
+- **ip-address 10.5.0 → 10.7.2** — CVE-2026-101910 (GHSA-2vr4-cq9g-pvrc) — ip-address: no classifier recognizes the NAT64 local-use range 64:ff9b:1::/48, allowing SSRF and trust-boundary bypass
+
+### CWE-1321: Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution')
+
+- **browserslist 4.28.4 → 4.28.9** — CVE-2026-73088 (GHSA-73wf-gq98-2v4g) — Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats) _(devDep)_
 
 ---
 

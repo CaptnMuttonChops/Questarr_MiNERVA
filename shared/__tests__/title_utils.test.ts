@@ -30,6 +30,11 @@ describe("title-utils", () => {
       expect(normalizeReleaseTitle(2026)).toBe("2026");
       expect(normalizeReleaseTitle(undefined)).toBe("");
       expect(normalizeReleaseTitle(null)).toBe("");
+      expect(normalizeReleaseTitle({ foo: "bar" })).toBe("");
+    });
+
+    it("reads the text node of a title element parsed with attributes", () => {
+      expect(normalizeReleaseTitle({ "#text": "Game\n  Name", "@_lang": "ru" })).toBe("Game Name");
     });
   });
 

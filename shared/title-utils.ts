@@ -22,8 +22,14 @@ export function normalizeTitle(title: string): string {
  * row into the title, which otherwise blows past the 500-character download title limit.
  */
 export function normalizeReleaseTitle(title: unknown): string {
-  if (title === null || title === undefined) return "";
-  return String(title).replaceAll(/\s+/g, " ").trim();
+  if (typeof title === "string" || typeof title === "number") {
+    return String(title).replaceAll(/\s+/g, " ").trim();
+  }
+  // fast-xml-parser yields { "#text": ... } for a <title> element that carries attributes
+  if (title !== null && typeof title === "object" && "#text" in title) {
+    return normalizeReleaseTitle(title["#text"]);
+  }
+  return "";
 }
 
 /**

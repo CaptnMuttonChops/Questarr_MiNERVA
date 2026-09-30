@@ -26,7 +26,6 @@ import {
   claimDownloadRequestSchema,
   insertRootFolderSchema,
   updateRootFolderSchema,
-  isUserCuratedGameStatus,
   type Config,
   type Game,
   type Indexer,
@@ -4239,8 +4238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // gameId comes from the request body, so verify ownership before
         // touching the downloader: otherwise a user who knows another user's
         // game UUID could link a download to that game and flip its status.
-        const targetGame = gameId ? await resolveOwnedGame(gameId, req.user!.id, res) : undefined;
-        if (gameId && !targetGame) return;
+        if (gameId && !(await resolveOwnedGame(gameId, req.user!.id, res))) return;
 
         const enabledDownloaders = await storage.getEnabledDownloaders();
         if (enabledDownloaders.length === 0) {
@@ -4293,14 +4291,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
 
             // An update/DLC grabbed for a game the user is playing (or has
-            // finished/shelved) must not knock it out of that status.
-            if (!isUserCuratedGameStatus(targetGame?.status)) {
-              await storage.updateGameStatus(
-                gameId,
-                { status: "downloading" },
-                { preserveCurated: true }
-              );
-            }
+            // finished/shelved) must not knock it out of that status. The
+            // guard is part of the UPDATE, so a status picked mid-request holds.
+            await storage.updateGameStatus(
+              gameId,
+              { status: "downloading" },
+              { preserveCurated: true }
+            );
             await storage.updateGameSearchResultsAvailable(gameId, false);
           } catch (error) {
             routesLogger.error({ error, gameId }, "Failed to link download to game");

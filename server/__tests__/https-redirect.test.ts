@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import express from "express";
 import request from "supertest";
-import { createHttpsRedirect } from "../https-redirect.js";
+import { createHttpsRedirect, safeRedirectHostname } from "../https-redirect.js";
 
 function buildApp(getPort: () => number | null) {
   const app = express();
@@ -45,6 +45,14 @@ describe("createHttpsRedirect", () => {
     expect(res.headers["location"]).toMatch(/^https:\/\/localhost:5443\//);
   });
 
+  it("keeps a bracketed IPv6 host, brackets included", async () => {
+    const res = await request(buildApp(() => 5443))
+      .get("/library")
+      .set("Host", "[2001:db8::10]:5000");
+    expect(res.status).toBe(302);
+    expect(res.headers["location"]).toBe("https://[2001:db8::10]:5443/library");
+  });
+
   it("keeps the base path when the app is mounted under QUESTARR_BASE_PATH", async () => {
     const root = express();
     root.use(
@@ -62,5 +70,20 @@ describe("createHttpsRedirect", () => {
     app.get("/library", (_req, res) => res.send("ok"));
     const res = await request(app).get("/library").set("X-Forwarded-Proto", "https");
     expect(res.status).toBe(200);
+  });
+});
+
+describe("safeRedirectHostname", () => {
+  it("accepts DNS names, IPv4 and bracketed IPv6 literals", () => {
+    expect(safeRedirectHostname("questarr.lan")).toBe("questarr.lan");
+    expect(safeRedirectHostname("192.168.1.10")).toBe("192.168.1.10");
+    expect(safeRedirectHostname("[::1]")).toBe("[::1]");
+  });
+
+  it("falls back to localhost for anything else", () => {
+    expect(safeRedirectHostname("[not-an-ip]")).toBe("localhost");
+    expect(safeRedirectHostname("[1.2.3.4]")).toBe("localhost");
+    expect(safeRedirectHostname("a]b")).toBe("localhost");
+    expect(safeRedirectHostname("evil.example/@attacker")).toBe("localhost");
   });
 });

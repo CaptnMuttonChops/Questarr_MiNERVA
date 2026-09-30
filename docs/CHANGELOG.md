@@ -88,6 +88,8 @@ All notable changes to this project will be documented in this file.
 - **Scroll areas**: scrollbars stayed hidden except while actively scrolling (#875).
 - **Game status**: a game marked Playing, Shelved or Completed kept being reset by the download pipeline: an update download flipped it to Downloading, then Owned on import (or Wanted if the download failed), and a root-folder scan flipped it to Owned. Those statuses are now left alone, update/pack searches keep running for Playing and Shelved games, and Discover treats them as owned.
 - **Auto-search**: with a minimum seeders rule set, every Usenet result was dropped because NZBs have no seeders; the rule now only applies to torrents (as in the manual download dialog), and Usenet results rank by grabs.
+- **Cover art**: games without a cover (manual or API adds) showed a broken image with its alt text on top, because the fallback pointed at a file that was never shipped. A bundled placeholder now takes its place.
+- **API**: unknown `/api/*` paths returned the web app's HTML with a 200; they now answer with a JSON 404.
 
 ### Changed
 

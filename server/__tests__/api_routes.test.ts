@@ -623,6 +623,22 @@ describe("API Routes - Extended Coverage", () => {
     });
   });
 
+  // ─── Unknown API paths ───
+  describe("unknown /api paths", () => {
+    it("returns a JSON 404 instead of falling through to the SPA", async () => {
+      const res = await request(app).get("/api/does-not-exist");
+      expect(res.status).toBe(404);
+      expect(res.headers["content-type"]).toMatch(/json/);
+      expect(res.body).toEqual({ error: "Not found" });
+    });
+
+    it("returns a JSON 404 for unknown methods on known paths", async () => {
+      const res = await request(app).patch("/api/health");
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: "Not found" });
+    });
+  });
+
   // ─── Ready check ───
   describe("GET /api/ready", () => {
     it("should return 200 when db and igdb are healthy", async () => {
@@ -4179,6 +4195,18 @@ describe("QUESTARR_BASE_PATH subdirectory mounting", () => {
     const response = await request(httpServer).get("/Questarr/api/health");
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: "ok" });
+  });
+
+  it("returns a JSON 404 for unknown API paths under the base path", async () => {
+    mockConfig.server.basePath = "/Questarr";
+
+    const prefixedApp = express();
+    prefixedApp.use(express.json());
+    const httpServer = await registerRoutes(prefixedApp);
+
+    const response = await request(httpServer).get("/Questarr/api/does-not-exist");
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Not found" });
   });
 
   it("keeps /api/health reachable unprefixed for container healthchecks", async () => {

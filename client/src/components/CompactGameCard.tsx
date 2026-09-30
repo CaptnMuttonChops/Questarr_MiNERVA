@@ -1,3 +1,4 @@
+import { coverSrc } from "@/lib/cover";
 import React, { memo, useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Info, Star, Calendar, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -139,7 +140,7 @@ const CompactGameCard = ({
               aria-label={`View details for ${game.title}`}
             >
               <img
-                src={game.coverUrl || "/placeholder-game-cover.jpg"}
+                src={coverSrc(game.coverUrl)}
                 alt={`${game.title} cover`}
                 className="h-full w-full object-cover"
                 loading="lazy"
@@ -344,7 +345,7 @@ const CompactGameCard = ({
             )}
           >
             <img
-              src={game.coverUrl || "/placeholder-game-cover.jpg"}
+              src={coverSrc(game.coverUrl)}
               alt={`${game.title} cover`}
               className="w-full h-full object-cover"
               loading="lazy"

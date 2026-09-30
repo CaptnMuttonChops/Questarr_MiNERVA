@@ -5550,6 +5550,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Unknown API paths must not fall through to the SPA catch-all, which would
+  // answer them with index.html and a 200 that clients then fail to parse.
+  app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ error: "Not found" });
+  });
+
   // Reverse-proxy subdirectory support: when QUESTARR_BASE_PATH is set
   // (e.g. "/Questarr"), mount the whole app under that prefix so it can be
   // served from https://host/Questarr/ without the reverse proxy needing to

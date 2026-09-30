@@ -798,7 +798,11 @@ export async function checkDownloadStatus() {
                   failedGame.status !== "wanted" &&
                   !isUserCuratedGameStatus(failedGame.status)
                 ) {
-                  await storage.updateGameStatus(download.gameId, { status: "wanted" });
+                  await storage.updateGameStatus(
+                    download.gameId,
+                    { status: "wanted" },
+                    { preserveCurated: true }
+                  );
                   igdbLogger.debug(
                     { gameId: download.gameId, oldStatus: failedGame.status, newStatus: "wanted" },
                     "Reset game status after async tag resolution failure"
@@ -957,7 +961,11 @@ export async function checkDownloadStatus() {
               // Update Game status to 'owned' (which means we have the files), unless
               // the user already moved it past that (e.g. an update for a game they're playing).
               if (!isUserCuratedGameStatus(game?.status)) {
-                await storage.updateGameStatus(download.gameId, { status: "owned" });
+                await storage.updateGameStatus(
+                  download.gameId,
+                  { status: "owned" },
+                  { preserveCurated: true }
+                );
               }
 
               igdbLogger.info(
@@ -1080,7 +1088,11 @@ export async function checkDownloadStatus() {
               game.status !== newGameStatus &&
               !isUserCuratedGameStatus(game.status)
             ) {
-              await storage.updateGameStatus(download.gameId, { status: newGameStatus });
+              await storage.updateGameStatus(
+                download.gameId,
+                { status: newGameStatus },
+                { preserveCurated: true }
+              );
               igdbLogger.debug(
                 { gameId: download.gameId, oldStatus: game.status, newStatus: newGameStatus },
                 "Updated game status"
@@ -1189,7 +1201,11 @@ export async function checkDownloadStatus() {
           notifyUser("downloadUpdate", download.gameId);
 
           if (willResetGame) {
-            await storage.updateGameStatus(download.gameId, { status: "wanted" });
+            await storage.updateGameStatus(
+              download.gameId,
+              { status: "wanted" },
+              { preserveCurated: true }
+            );
           }
 
           if (missedPrefs.downloadFailed.inApp || missedPrefs.downloadFailed.apprise) {

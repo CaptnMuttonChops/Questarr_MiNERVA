@@ -4295,7 +4295,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // An update/DLC grabbed for a game the user is playing (or has
             // finished/shelved) must not knock it out of that status.
             if (!isUserCuratedGameStatus(targetGame?.status)) {
-              await storage.updateGameStatus(gameId, { status: "downloading" });
+              await storage.updateGameStatus(
+                gameId,
+                { status: "downloading" },
+                { preserveCurated: true }
+              );
             }
             await storage.updateGameSearchResultsAvailable(gameId, false);
           } catch (error) {

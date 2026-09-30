@@ -22,7 +22,7 @@ Five weighted dimensions. Max score: **100**.
 
 ---
 
-## Current Score: 78.3/100
+## Current Score: 78.2/100
 
 ### Automation — 26/30
 

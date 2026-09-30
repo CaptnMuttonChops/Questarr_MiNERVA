@@ -176,6 +176,44 @@ describe("socket.ts", () => {
     expect(await handshakeOutcome(clientSocket)).toBe("connected");
   });
 
+  it.each([
+    { label: "same-origin", origin: (port: number) => `http://localhost:${port}`, ok: true },
+    { label: "no Origin (non-browser client)", origin: () => undefined, ok: true },
+    { label: "another origin on the same site", origin: () => "http://localhost:1", ok: false },
+    { label: "a malformed Origin", origin: () => "not a url", ok: false },
+  ])("with the cookie, a handshake from $label is accepted=$ok", async ({ origin, ok }) => {
+    httpServer = createServer();
+    setupSocketIO(httpServer);
+    port = await listen(httpServer);
+    const originHeader = origin(port);
+
+    clientSocket = ioClient(`http://localhost:${port}`, {
+      transports: ["websocket"],
+      reconnection: false,
+      extraHeaders: {
+        Cookie: `questarr_auth=${VALID_TOKEN}`,
+        ...(originHeader ? { Origin: originHeader } : {}),
+      },
+    });
+
+    expect(await handshakeOutcome(clientSocket)).toBe(ok ? "connected" : "Authentication required");
+  });
+
+  it("accepts an explicit bearer token whatever the Origin, since it isn't ambient", async () => {
+    httpServer = createServer();
+    setupSocketIO(httpServer);
+    port = await listen(httpServer);
+
+    clientSocket = ioClient(`http://localhost:${port}`, {
+      transports: ["websocket"],
+      reconnection: false,
+      auth: { token: VALID_TOKEN },
+      extraHeaders: { Origin: "http://elsewhere.example" },
+    });
+
+    expect(await handshakeOutcome(clientSocket)).toBe("connected");
+  });
+
   it("does not stream log lines to a rejected client", async () => {
     httpServer = createServer();
     setupSocketIO(httpServer);

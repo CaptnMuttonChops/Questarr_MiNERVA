@@ -27,8 +27,15 @@ export function setupSocketIO(httpServer: HttpServer) {
     // cookie a browser sends automatically, or a bearer token for a session
     // still on the legacy localStorage flow.
     io.use(async (socket, next) => {
-      const token = getHandshakeToken(socket.handshake);
-      const user = token ? await verifyAuthToken(token) : undefined;
+      const credential = getHandshakeCredential(socket.handshake);
+      // The cookie is ambient: a page on another origin that shares this site
+      // (another app on the same host, say) could open a WebSocket and have
+      // the browser attach it. WebSockets skip CORS, so check Origin here, the
+      // same rule csrfProtection applies to cookie-authenticated REST calls.
+      if (credential?.source === "cookie" && !isTrustedOrigin(socket.handshake.headers)) {
+        return next(new Error("Authentication required"));
+      }
+      const user = credential ? await verifyAuthToken(credential.token) : undefined;
       if (!user) {
         return next(new Error("Authentication required"));
       }
@@ -59,10 +66,12 @@ interface HandshakeLike {
   headers: Record<string, string | string[] | undefined>;
 }
 
-function getHandshakeToken(handshake: HandshakeLike): string | undefined {
+function getHandshakeCredential(
+  handshake: HandshakeLike
+): { token: string; source: "cookie" | "bearer" } | undefined {
   const authToken = handshake.auth["token"];
   if (typeof authToken === "string" && authToken) {
-    return authToken;
+    return { token: authToken, source: "bearer" };
   }
 
   const authHeader = handshake.headers["authorization"];
@@ -70,14 +79,37 @@ function getHandshakeToken(handshake: HandshakeLike): string | undefined {
     const [scheme, ...rest] = authHeader.split(" ");
     const bearerToken = rest.join(" ");
     if (scheme?.toLowerCase() === "bearer" && bearerToken) {
-      return bearerToken;
+      return { token: bearerToken, source: "bearer" };
     }
   }
 
   const cookieHeader = handshake.headers["cookie"];
-  return parseCookies(typeof cookieHeader === "string" ? cookieHeader : undefined)[
+  const cookieToken = parseCookies(typeof cookieHeader === "string" ? cookieHeader : undefined)[
     AUTH_COOKIE_NAME
   ];
+  return cookieToken ? { token: cookieToken, source: "cookie" } : undefined;
+}
+
+/**
+ * A handshake's Origin is trusted when it is this server itself (matching the
+ * Host header) or one of the explicitly configured ALLOWED_ORIGINS. Browsers
+ * always send Origin on WebSocket and cross-origin requests, so a missing one
+ * means a non-browser client, which can't be riding someone else's cookie.
+ */
+function isTrustedOrigin(headers: HandshakeLike["headers"]): boolean {
+  const origin = headers["origin"];
+  if (typeof origin !== "string" || !origin) {
+    return true;
+  }
+  const host = headers["host"];
+  try {
+    if (typeof host === "string" && new URL(origin).host === host) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return config.server.allowedOrigins.some((allowed) => allowed !== "*" && allowed === origin);
 }
 
 export function getIO() {

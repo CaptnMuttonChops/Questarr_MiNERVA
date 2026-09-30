@@ -120,7 +120,7 @@ All notable changes to this project will be documented in this file.
 #### Access Control
 
 - **API auth**: added a default-deny boundary and fixed an unauthenticated `GET /api/config` (#953).
-- **Real-time channel**: the Socket.IO connection now requires the same session as the REST API. Before, anyone who could reach the port could open it and receive the live server log stream, notifications and download progress.
+- **Real-time channel**: the Socket.IO connection now requires the same session as the REST API. Before, anyone who could reach the port could open it and receive the live server log stream, notifications and download progress. A handshake that relies on the session cookie must also come from Questarr's own origin (or one in `ALLOWED_ORIGINS`).
 - **Delete with files**: deleting a game whose library path is the library root (or an opted-in root folder) itself no longer removes that whole folder.
 - **Auth**: failed login attempts are now logged for brute-force/credential-stuffing detection (#858); fixed an IDOR letting any user modify or delete another user's games, and strengthened the password policy to 8+ characters with a letter and a digit (#859).
 - **Input validation**: hardened indexer search, qBittorrent, NexusMods, and game-status endpoints against unbounded/malformed input (#857).

@@ -245,7 +245,11 @@ describe("scanRootFolderById full scan", () => {
 
     // Existing, not-yet-owned game gets promoted to owned rather than re-created,
     // and since it had no libraryPath yet, the discovered folder is set on it too.
-    expect(storage.updateGameStatus).toHaveBeenCalledWith("existing-game", { status: "owned" });
+    expect(storage.updateGameStatus).toHaveBeenCalledWith(
+      "existing-game",
+      { status: "owned" },
+      { preserveCurated: true }
+    );
     expect(storage.updateGame).toHaveBeenCalledWith("existing-game", {
       libraryPath: path.join(tmpDir, "Existing Game"),
     });

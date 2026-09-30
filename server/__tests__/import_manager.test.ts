@@ -317,7 +317,11 @@ describe("ImportManager", () => {
       overwrite: true,
     });
     expect(storage.updateGameDownloadStatus).toHaveBeenCalledWith("dl-1", "imported");
-    expect(storage.updateGameStatus).toHaveBeenCalledWith("g1", { status: "owned" });
+    expect(storage.updateGameStatus).toHaveBeenCalledWith(
+      "g1",
+      { status: "owned" },
+      { preserveCurated: true }
+    );
   });
 
   it.each(["playing", "shelved", "completed"])(

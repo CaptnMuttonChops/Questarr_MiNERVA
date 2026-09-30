@@ -540,7 +540,7 @@ export class ImportManager {
     await this.storage.updateGameDownloadStatus(downloadId, "imported");
     await this.storage.updateGame(game.id, { libraryPath });
     if (game.status !== "owned" && !isUserCuratedGameStatus(game.status)) {
-      await this.storage.updateGameStatus(game.id, { status: "owned" });
+      await this.storage.updateGameStatus(game.id, { status: "owned" }, { preserveCurated: true });
     }
   }
 

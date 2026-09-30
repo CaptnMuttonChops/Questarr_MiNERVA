@@ -74,6 +74,7 @@ All notable changes to this project will be documented in this file.
 - **IGDB**: validated the rate-limit setting's range; canonicalized/deduped game editions in search results (#1020, #950).
 - **Unraid**: fixed the Community Applications template category and default `PUID`/`PGID`, and added an optional Library Path and `UMASK` setting (#850, #886).
 - **safeFetch**: fixed the `Host` header being silently replaced by the resolved IP on plain-HTTP requests, which broke Prowlarr's proxy-link matching (#822).
+- **HTTPS**: the `ssl.redirectHttp` option never redirected anything, because its middleware was registered after the web app's catch-all route. It now runs ahead of every route and keeps the base path and query string. With `QUESTARR_BASE_PATH` set, the HTTPS listener now also serves the app under that path, like the HTTP one.
 
 #### Documentation
 

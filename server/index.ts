@@ -1,6 +1,7 @@
 // Force restart trigger
 import "dotenv/config";
 import https from "https";
+import type { RequestListener } from "http";
 import fs from "fs";
 
 import { createApp } from "./app.js";
@@ -10,6 +11,7 @@ import { errorHandler } from "./middleware.js";
 import { config } from "./config.js";
 import { startCronJobs } from "./cron.js";
 import { setupSocketIO } from "./socket.js";
+import { createHttpsRedirect } from "./https-redirect.js";
 import { ensureDatabase } from "./migrate.js";
 import { rssService } from "./rss.js";
 import { nexusmodsClient } from "./nexusmods.js";
@@ -91,7 +93,16 @@ process.on("unhandledRejection", (reason) => handleFatalError("unhandledRejectio
       log(`Apprise client configured from database (${appriseSettings.mode} mode)`);
     }
 
+    // Installed before every route so it can run at all; it stays a no-op until
+    // the HTTPS server below is up and ssl.redirectHttp is set.
+    let httpsRedirectPort: number | null = null;
+    app.use(createHttpsRedirect(() => httpsRedirectPort));
+
     const server = await registerRoutes(app);
+    // Grab the Express handler before Socket.IO wraps the server's request
+    // listeners. With QUESTARR_BASE_PATH set it is a root app that mounts `app`
+    // under the base path, and the HTTPS server below has to serve that tree.
+    const [rootRequestHandler] = server.listeners("request") as RequestListener[];
 
     setupSocketIO(server);
 
@@ -132,7 +143,7 @@ process.on("unhandledRejection", (reason) => handleFatalError("unhandledRejectio
             cert: await fs.promises.readFile(ssl.certPath),
           };
 
-          const httpsServer = https.createServer(httpsOptions, app);
+          const httpsServer = https.createServer(httpsOptions, rootRequestHandler ?? app);
 
           // Setup Socket.IO for HTTPS server as well
           setupSocketIO(httpsServer);
@@ -143,21 +154,7 @@ process.on("unhandledRejection", (reason) => handleFatalError("unhandledRejectio
 
           // HTTP to HTTPS redirect
           if (ssl.redirectHttp) {
-            app.use((req, res, next) => {
-              if (req.path === "/api/health") {
-                return next();
-              }
-              if (!req.secure) {
-                // Validate hostname to prevent open redirect via a crafted Host header.
-                // req.path is already Express-normalized (no host component).
-                const rawHostname = req.hostname;
-                const safeHostname = /^[a-zA-Z0-9.\-[\]]+$/.test(rawHostname)
-                  ? rawHostname
-                  : "localhost";
-                return res.redirect(`https://${safeHostname}:${ssl.port}${req.path}`);
-              }
-              next();
-            });
+            httpsRedirectPort = ssl.port;
           }
         }
       } catch (error) {

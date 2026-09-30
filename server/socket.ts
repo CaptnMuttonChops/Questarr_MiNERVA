@@ -91,25 +91,45 @@ function getHandshakeCredential(
 }
 
 /**
- * A handshake's Origin is trusted when it is this server itself (matching the
- * Host header) or one of the explicitly configured ALLOWED_ORIGINS. Browsers
- * always send Origin on WebSocket and cross-origin requests, so a missing one
- * means a non-browser client, which can't be riding someone else's cookie.
+ * A handshake's Origin is trusted when it is this server itself or one of the
+ * explicitly configured ALLOWED_ORIGINS / APP_URL. "This server" means the
+ * Host header, or X-Forwarded-Host when a reverse proxy rewrote Host: a page
+ * can't set either header on a WebSocket handshake, so neither can be forged
+ * from another origin. Browsers always send Origin on WebSocket and
+ * cross-origin requests, so a missing one means a non-browser client, which
+ * can't be riding someone else's cookie.
  */
 function isTrustedOrigin(headers: HandshakeLike["headers"]): boolean {
   const origin = headers["origin"];
   if (typeof origin !== "string" || !origin) {
     return true;
   }
-  const host = headers["host"];
+  let originHost: string;
   try {
-    if (typeof host === "string" && new URL(origin).host === host) {
-      return true;
-    }
+    originHost = new URL(origin).host;
   } catch {
     return false;
   }
-  return config.server.allowedOrigins.some((allowed) => allowed !== "*" && allowed === origin);
+  const forwardedHost = headers["x-forwarded-host"];
+  const selfHosts = [
+    headers["host"],
+    ...(typeof forwardedHost === "string" ? forwardedHost.split(",") : []),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim());
+  if (selfHosts.includes(originHost)) {
+    return true;
+  }
+  const configured = [...config.server.allowedOrigins, config.server.appUrl].filter(
+    (value): value is string => !!value && value !== "*"
+  );
+  return configured.some((allowed) => {
+    try {
+      return new URL(allowed).origin === new URL(origin).origin;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function getIO() {

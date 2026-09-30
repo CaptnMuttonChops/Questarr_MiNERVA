@@ -199,6 +199,24 @@ describe("socket.ts", () => {
     expect(await handshakeOutcome(clientSocket)).toBe(ok ? "connected" : "Authentication required");
   });
 
+  it("with the cookie, accepts the public origin a reverse proxy forwards as X-Forwarded-Host", async () => {
+    httpServer = createServer();
+    setupSocketIO(httpServer);
+    port = await listen(httpServer);
+
+    clientSocket = ioClient(`http://localhost:${port}`, {
+      transports: ["websocket"],
+      reconnection: false,
+      extraHeaders: {
+        Cookie: `questarr_auth=${VALID_TOKEN}`,
+        Origin: "https://questarr.example.com",
+        "X-Forwarded-Host": "questarr.example.com",
+      },
+    });
+
+    expect(await handshakeOutcome(clientSocket)).toBe("connected");
+  });
+
   it("accepts an explicit bearer token whatever the Origin, since it isn't ambient", async () => {
     httpServer = createServer();
     setupSocketIO(httpServer);

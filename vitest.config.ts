@@ -17,10 +17,10 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "json-summary", "html"],
       thresholds: {
-        statements: 81,
-        branches: 74,
-        functions: 77,
-        lines: 82,
+        statements: 83,
+        branches: 76,
+        functions: 79,
+        lines: 84,
       },
     },
     exclude: [

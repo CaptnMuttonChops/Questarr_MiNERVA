@@ -95,8 +95,8 @@ Functional. Mobile responsiveness is the main gap.
 - [x] SSRF-protected outbound fetch
 - [x] In-memory SQLite for tests (no real DB in CI)
 - [x] Drizzle migrations
-- [x] E2E tests for main user journeys (Playwright, port 5100, run in CI since #1122)
-- [x] Test coverage gate in CI (81% statements / 74% branches / 77% functions / 82% lines)
+- [x] E2E tests for main user journeys (Playwright, port 5100)
+- [x] Test coverage gate in CI (83% statements / 76% branches / 79% functions / 84% lines)
 - [ ] Pagination on heavy list endpoints
 - [ ] Advanced caching for search results
 

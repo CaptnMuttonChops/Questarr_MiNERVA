@@ -1,3 +1,4 @@
+import { coverSrc } from "@/lib/cover";
 import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -415,7 +416,7 @@ export default function AddGameModal({ children, initialQuery }: AddGameModalPro
                     data-testid={`search-result-${game.id}`}
                   >
                     <img
-                      src={game.coverUrl || "/placeholder-game-cover.jpg"}
+                      src={coverSrc(game.coverUrl)}
                       alt={`${game.title} cover`}
                       className="w-14 h-20 object-cover rounded-md flex-shrink-0"
                     />
@@ -565,7 +566,7 @@ export default function AddGameModal({ children, initialQuery }: AddGameModalPro
                   <CardContent className="p-4">
                     <div className="flex gap-4">
                       <img
-                        src={game.coverUrl || "/placeholder-game-cover.jpg"}
+                        src={coverSrc(game.coverUrl)}
                         alt={`${game.title} cover`}
                         className="w-16 h-24 object-cover rounded-md flex-shrink-0"
                       />

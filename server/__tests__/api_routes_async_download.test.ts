@@ -226,9 +226,11 @@ describe("POST /api/downloads — async qBittorrent tracking", () => {
     );
 
     // Game status should be updated to downloading.
-    expect(storage.updateGameStatus).toHaveBeenCalledWith(gameId, {
-      status: "downloading",
-    });
+    expect(storage.updateGameStatus).toHaveBeenCalledWith(
+      gameId,
+      { status: "downloading" },
+      { preserveCurated: true }
+    );
   });
 
   it("creates a game_downloads record with the real hash when sync add returns an id", async () => {

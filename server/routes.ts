@@ -295,7 +295,7 @@ import { importRouter } from "./routes/import.js";
 import { importTasksRouter } from "./routes/import-tasks.js";
 import { systemRouter } from "./routes/system.js";
 import { pcgamingwikiRouter } from "./pcgamingwiki-router.js";
-import { probeRootFolder, isWithinDeletableRootFolder } from "./root-folders.js";
+import { probeRootFolder, isWithinDeletableRootFolder, isStrictlyInside } from "./root-folders.js";
 import {
   scanRootFolderById,
   scanAllEnabledRootFolders,
@@ -2335,8 +2335,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const config = await storage.getImportConfig(game.userId ?? undefined);
             const resolvedRoot = path.resolve(config.libraryRoot);
             const resolvedTarget = path.resolve(game.libraryPath);
-            const insideRoot =
-              resolvedTarget === resolvedRoot || resolvedTarget.startsWith(resolvedRoot + path.sep);
+            // Strictly inside: a libraryPath that IS the library root (e.g. a
+            // manual import confirmed straight into it) must never let one
+            // game's deletion wipe every other game's files with it.
+            const insideRoot = isStrictlyInside(resolvedRoot, resolvedTarget);
             // Games discovered by the root-folder scanner live outside the
             // configured library root by design. Allow deleting their files
             // too, but only when the user has explicitly opted that specific
@@ -4288,7 +4290,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               downloadType: downloadType || "torrent",
             });
 
-            await storage.updateGameStatus(gameId, { status: "downloading" });
+            // An update/DLC grabbed for a game the user is playing (or has
+            // finished/shelved) must not knock it out of that status. The
+            // guard is part of the UPDATE, so a status picked mid-request holds.
+            await storage.updateGameStatus(
+              gameId,
+              { status: "downloading" },
+              { preserveCurated: true }
+            );
             await storage.updateGameSearchResultsAvailable(gameId, false);
           } catch (error) {
             routesLogger.error({ error, gameId }, "Failed to link download to game");
@@ -5541,6 +5550,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  // Unknown API paths must not fall through to the SPA catch-all, which would
+  // answer them with index.html and a 200 that clients then fail to parse.
+  app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ error: "Not found" });
+  });
 
   // Reverse-proxy subdirectory support: when QUESTARR_BASE_PATH is set
   // (e.g. "/Questarr"), mount the whole app under that prefix so it can be

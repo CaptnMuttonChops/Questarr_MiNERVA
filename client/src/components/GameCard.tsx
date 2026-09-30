@@ -1,3 +1,4 @@
+import { coverSrc } from "@/lib/cover";
 import React, { useState, memo, useRef, useEffect, lazy, Suspense } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -138,7 +139,7 @@ const GameCard = ({
         {/* ⚡ Bolt: Lazy loading images prevents fetching all game covers upfront,
             improving initial page load speed, especially on pages with many carousels. */}
         <img
-          src={game.coverUrl || "/placeholder-game-cover.jpg"}
+          src={coverSrc(game.coverUrl)}
           alt={`${game.title} cover`}
           className="thumbnail-image rounded-t-md"
           loading="lazy"

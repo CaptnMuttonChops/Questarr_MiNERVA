@@ -296,7 +296,7 @@ import { importRouter } from "./routes/import.js";
 import { importTasksRouter } from "./routes/import-tasks.js";
 import { systemRouter } from "./routes/system.js";
 import { pcgamingwikiRouter } from "./pcgamingwiki-router.js";
-import { probeRootFolder, isWithinDeletableRootFolder } from "./root-folders.js";
+import { probeRootFolder, isWithinDeletableRootFolder, isStrictlyInside } from "./root-folders.js";
 import {
   scanRootFolderById,
   scanAllEnabledRootFolders,
@@ -2339,7 +2339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Strictly inside: a libraryPath that IS the library root (e.g. a
             // manual import confirmed straight into it) must never let one
             // game's deletion wipe every other game's files with it.
-            const insideRoot = resolvedTarget.startsWith(resolvedRoot + path.sep);
+            const insideRoot = isStrictlyInside(resolvedRoot, resolvedTarget);
             // Games discovered by the root-folder scanner live outside the
             // configured library root by design. Allow deleting their files
             // too, but only when the user has explicitly opted that specific

@@ -167,10 +167,14 @@ the only module importing the Drizzle `db` client for application data.
 
 ## 6. Out-of-band channel: Socket.io
 
-`server/socket.ts` exposes a single `notifyUser(type, payload)` function
-(`server/socket.ts:42-46`) that calls `io.emit(type, payload)` — a broadcast
-to every connected socket, with no per-user rooms (a `TODO` in `cron.ts`
-flags this — see `server/cron.ts:534,583`). This is consistent with §9:
+`server/socket.ts` gates every connection with an `io.use` handshake check
+(`server/socket.ts:29-44`): the socket must carry the auth cookie (from a
+trusted Origin) or a bearer token that `verifyAuthToken` accepts, otherwise
+the handshake is rejected with "Authentication required". Once connected,
+`notifyUser(type, payload)` (`server/socket.ts:143-147`) calls
+`io.emit(type, payload)` — a broadcast to every authenticated socket, with
+no per-user rooms (a `TODO` in `cron.ts` flags this — see
+`server/cron.ts:978,1045`; tracked in #1081). This is consistent with §9:
 Questarr's supported deployment is one trusted operator per instance, so a
 cross-account broadcast is not a hardened boundary today and isn't being
 prioritized as one. Two event types are emitted today:

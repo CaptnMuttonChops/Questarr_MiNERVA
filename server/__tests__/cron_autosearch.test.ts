@@ -616,6 +616,34 @@ describe("Cron - checkAutoSearch", () => {
       );
     });
 
+    it("guards the downloading status write so a status curated mid-search survives", async () => {
+      const settings = { ...baseSettings, autoDownloadEnabled: true };
+      const mockDownloader = { id: "dl-1", name: "qBittorrent", type: "torrent", enabled: true };
+
+      mockGetUserSettings.mockResolvedValue(settings);
+      mockGetEnabledDownloaders.mockResolvedValue([mockDownloader]);
+      mockAddDownloadWithFallback.mockResolvedValue({
+        success: true,
+        id: "hash-abc",
+        downloaderId: "dl-1",
+      });
+      mockSearchAllIndexers.mockResolvedValue({
+        items: [{ ...SKIDROW_ITEM, downloadType: "torrent" }],
+        errors: [],
+        total: 1,
+      });
+
+      await checkAutoSearch();
+
+      const downloadingWrites = mockUpdateGameStatus.mock.calls.filter(
+        (call) => (call[1] as { status?: string } | undefined)?.status === "downloading"
+      );
+      expect(downloadingWrites.length).toBeGreaterThan(0);
+      for (const call of downloadingWrites) {
+        expect(call[2]).toEqual({ preserveCurated: true });
+      }
+    });
+
     it("should not include group suffix in Download Started notification when item has no group", async () => {
       const settings = { ...baseSettings, autoDownloadEnabled: true };
       const mockDownloader = { id: "dl-1", name: "qBittorrent", type: "torrent", enabled: true };

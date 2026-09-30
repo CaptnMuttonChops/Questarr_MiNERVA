@@ -23,6 +23,10 @@ const mockGetDownloadingGameDownloads = vi.fn();
 const mockGetDownloader = vi.fn();
 const mockUpdateGameDownloadStatus = vi.fn();
 const mockUpdateGameStatus = vi.fn();
+// Status payloads written for a game, whatever options argument accompanied
+// them, so negative assertions cannot pass on an argument-count mismatch.
+const statusWritesFor = (gameId: unknown): unknown[] =>
+  mockUpdateGameStatus.mock.calls.filter((call) => call[0] === gameId).map((call) => call[1]);
 const mockGetGame = vi.fn();
 const mockAddNotification = vi.fn();
 const mockGetUserSettings = vi.fn();
@@ -209,13 +213,7 @@ describe("Cron - checkDownloadStatus", () => {
       "/downloads/complete/Test Game"
     );
     expect(mockUpdateGameDownloadStatus).not.toHaveBeenCalledWith(baseDownload.id, "completed");
-    expect(mockUpdateGameStatus).not.toHaveBeenCalledWith(
-      baseDownload.gameId,
-      {
-        status: "owned",
-      },
-      expect.anything()
-    );
+    expect(statusWritesFor(baseDownload.gameId)).not.toContainEqual({ status: "owned" });
   });
 
   it("should mark as failed and reset the game to wanted when both bulk and individual checks return null", async () => {
@@ -246,11 +244,7 @@ describe("Cron - checkDownloadStatus", () => {
       { status: "wanted" },
       { preserveCurated: true }
     );
-    expect(mockUpdateGameStatus).not.toHaveBeenCalledWith(
-      baseDownload.gameId,
-      { status: "owned" },
-      expect.anything()
-    );
+    expect(statusWritesFor(baseDownload.gameId)).not.toContainEqual({ status: "owned" });
     expect(mockNotifyUser).toHaveBeenCalledWith("downloadUpdate", baseDownload.gameId);
   });
 
@@ -302,18 +296,8 @@ describe("Cron - checkDownloadStatus", () => {
       "completed",
       null
     );
-    expect(mockUpdateGameStatus).not.toHaveBeenCalledWith(
-      baseDownload.gameId,
-      { status: "owned" },
-      expect.anything()
-    );
-    expect(mockUpdateGameStatus).not.toHaveBeenCalledWith(
-      baseDownload.gameId,
-      {
-        status: "wanted",
-      },
-      expect.anything()
-    );
+    expect(statusWritesFor(baseDownload.gameId)).not.toContainEqual({ status: "owned" });
+    expect(statusWritesFor(baseDownload.gameId)).not.toContainEqual({ status: "wanted" });
     expect(mockNotifyUser).toHaveBeenCalledWith("downloadUpdate", baseDownload.gameId);
   });
 
@@ -337,13 +321,7 @@ describe("Cron - checkDownloadStatus", () => {
       "failed",
       expect.any(String)
     );
-    expect(mockUpdateGameStatus).not.toHaveBeenCalledWith(
-      baseDownload.gameId,
-      {
-        status: "wanted",
-      },
-      expect.anything()
-    );
+    expect(statusWritesFor(baseDownload.gameId)).not.toContainEqual({ status: "wanted" });
   });
 
   it("should send an apprise-only failure notification without an in-app notification", async () => {
@@ -432,13 +410,7 @@ describe("Cron - checkDownloadStatus", () => {
       baseDownload.id,
       "manual_review_required"
     );
-    expect(mockUpdateGameStatus).not.toHaveBeenCalledWith(
-      baseDownload.gameId,
-      {
-        status: "owned",
-      },
-      expect.anything()
-    );
+    expect(statusWritesFor(baseDownload.gameId)).not.toContainEqual({ status: "owned" });
   });
 
   it("should not duplicate the release name when the downloader path already points at it", async () => {

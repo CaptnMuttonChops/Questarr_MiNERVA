@@ -1445,7 +1445,13 @@ export async function checkAutoSearch() {
                           });
 
                           // Update game status
-                          await storage.updateGameStatus(game.id, { status: "downloading" });
+                          // Guarded: the user may have curated this game while the
+                          // indexer and downloader calls above were in flight.
+                          await storage.updateGameStatus(
+                            game.id,
+                            { status: "downloading" },
+                            { preserveCurated: true }
+                          );
 
                           // Notify success
                           const groupSuffix = item.group ? ` [${item.group}]` : "";

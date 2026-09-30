@@ -38,7 +38,7 @@ All notable changes to this project will be documented in this file.
 
 #### Integrations
 
-- **PostgreSQL backend**: [OPTIONAL] Questarr can now run on PostgreSQL instead of SQLite, selected via `DATABASE_URL`/config (#1046). See `docs/DATABASE.md` if you're looking to migrate from SQLite.
+- **PostgreSQL backend**: [OPTIONAL] Questarr can now run on PostgreSQL instead of SQLite, selected with `DB_DIALECT=postgres` plus `DATABASE_URL` (setting `DATABASE_URL` alone keeps SQLite) (#1046). See `docs/DATABASE.md` if you're looking to migrate from SQLite.
 - **Playnite integration**: API keys, an integration API, and a Playnite extension. See [the extension's README](../extensions/playnite-questarr/README.md) for setup (#986).
 - **Steam wishlist**: optional auto-sync on a configurable interval, alongside the existing manual sync (#805).
 
@@ -86,6 +86,10 @@ All notable changes to this project will be documented in this file.
 - **Calendar**: follow-up fixes to the year view's date filtering.
 - **Release notifications**: no longer sent for games added with a release date already in the past (#874).
 - **Scroll areas**: scrollbars stayed hidden except while actively scrolling (#875).
+- **Game status**: a game marked Playing, Shelved or Completed kept being reset by the download pipeline: an update download flipped it to Downloading, then Owned on import (or Wanted if the download failed), and a root-folder scan flipped it to Owned. Those statuses are now left alone, update/pack searches keep running for Playing and Shelved games, and Discover treats them as owned.
+- **Auto-search**: with a minimum seeders rule set, every Usenet result was dropped because NZBs have no seeders; the rule now only applies to torrents (as in the manual download dialog), and Usenet results rank by grabs.
+- **Cover art**: games without a cover (manual or API adds) showed a broken image with its alt text on top, because the fallback pointed at a file that was never shipped. A bundled placeholder now takes its place.
+- **API**: unknown `/api/*` paths returned the web app's HTML with a 200; they now answer with a JSON 404.
 
 ### Changed
 
@@ -116,6 +120,8 @@ All notable changes to this project will be documented in this file.
 #### Access Control
 
 - **API auth**: added a default-deny boundary and fixed an unauthenticated `GET /api/config` (#953).
+- **Real-time channel**: the Socket.IO connection now requires the same session as the REST API. Before, anyone who could reach the port could open it and receive the live server log stream, notifications and download progress. A handshake that relies on the session cookie must also come from Questarr's own origin (reverse proxies that set `X-Forwarded-Host` work unchanged; otherwise list the public URL in `ALLOWED_ORIGINS` or `APP_URL`).
+- **Delete with files**: deleting a game whose library path is the library root (or an opted-in root folder) itself no longer removes that whole folder.
 - **Auth**: failed login attempts are now logged for brute-force/credential-stuffing detection (#858); fixed an IDOR letting any user modify or delete another user's games, and strengthened the password policy to 8+ characters with a letter and a digit (#859).
 - **Input validation**: hardened indexer search, qBittorrent, NexusMods, and game-status endpoints against unbounded/malformed input (#857).
 

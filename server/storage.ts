@@ -44,6 +44,8 @@ import {
   type ApiKeyPublic,
   GAME_LINK_REQUIRED_STATUS,
   QUARANTINED_STATUS,
+  USER_CURATED_GAME_STATUSES,
+  isUserCuratedGameStatus,
   type RootFolder,
   type InsertRootFolder,
   type UpdateRootFolder,
@@ -222,7 +224,18 @@ export interface IStorage {
   getUserGamesByStatus(userId: string, status: string, includeHidden?: boolean): Promise<Game[]>;
   searchUserGames(userId: string, query: string, includeHidden?: boolean): Promise<Game[]>;
   addGame(game: InsertGame): Promise<Game>;
-  updateGameStatus(id: string, statusUpdate: UpdateGameStatus): Promise<Game | undefined>;
+  /**
+   * Set a game's status. With `preserveCurated`, the write only applies while the
+   * game's *current* status is not one the user set by hand (playing, shelved,
+   * completed), checked in the same statement so a status the user picks while
+   * a download or import is running can't be overwritten by the pipeline.
+   * Returns undefined when nothing was updated.
+   */
+  updateGameStatus(
+    id: string,
+    statusUpdate: UpdateGameStatus,
+    options?: { preserveCurated?: boolean }
+  ): Promise<Game | undefined>;
   updateGameHidden(id: string, hidden: boolean): Promise<Game | undefined>;
   updateGameUserRating(
     id: string,
@@ -666,9 +679,14 @@ export class MemStorage implements IStorage {
     return game;
   }
 
-  async updateGameStatus(id: string, statusUpdate: UpdateGameStatus): Promise<Game | undefined> {
+  async updateGameStatus(
+    id: string,
+    statusUpdate: UpdateGameStatus,
+    options?: { preserveCurated?: boolean }
+  ): Promise<Game | undefined> {
     const game = this.games.get(id);
     if (!game) return undefined;
+    if (options?.preserveCurated && isUserCuratedGameStatus(game.status)) return undefined;
 
     const leavingWanted = game.status === "wanted" && statusUpdate.status !== "wanted";
 
@@ -2236,7 +2254,11 @@ export class DatabaseStorage implements IStorage {
     return firstOrThrow(rows);
   }
 
-  async updateGameStatus(id: string, statusUpdate: UpdateGameStatus): Promise<Game | undefined> {
+  async updateGameStatus(
+    id: string,
+    statusUpdate: UpdateGameStatus,
+    options?: { preserveCurated?: boolean }
+  ): Promise<Game | undefined> {
     const existingGame = await this.getGame(id);
     const leavingWanted = existingGame?.status === "wanted" && statusUpdate.status !== "wanted";
 
@@ -2253,7 +2275,11 @@ export class DatabaseStorage implements IStorage {
             }
           : {}),
       })
-      .where(eq(games.id, id))
+      .where(
+        options?.preserveCurated
+          ? and(eq(games.id, id), not(inArray(games.status, [...USER_CURATED_GAME_STATUSES])))
+          : eq(games.id, id)
+      )
       .returning();
 
     return updatedGame || undefined;

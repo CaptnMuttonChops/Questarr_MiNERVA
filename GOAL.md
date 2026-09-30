@@ -192,6 +192,12 @@ Baseline coverage_depth breakdown:
   Branches   75.05% (floor 74%, target 78%) — 1.97/7.5
   Functions  78.52% (floor 77%, target 81%) — 2.85/7.5
   Lines      83.56% (floor 82%, target 86%) — 2.93/7.5
+Re-measured 2026-09-30 (1.5.0 release pass): 87.8
+  validation 30/30, page_coverage 20/20, e2e_journeys 20/20, coverage_depth 17.8/30
+  Statements 83.58% (4.84/7.5), Branches 75.82% (3.41/7.5),
+  Functions 79.25% (4.22/7.5), Lines 84.82% (5.29/7.5)
+  Not at a stopping condition yet (needs score >= 90 or coverage_depth >= 24).
+  Branch coverage is the furthest from its target.
 Status: in progress — this block will be filled in with ending score, iteration
   count, and changes made once Phase 2 reaches a stopping condition (see
   Stopping Conditions above).

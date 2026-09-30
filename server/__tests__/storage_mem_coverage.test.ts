@@ -232,6 +232,29 @@ describe("MemStorage - Game update methods", () => {
     expect(updated?.completedAt).not.toBeNull();
   });
 
+  it("updateGameStatus with preserveCurated leaves a user-set status alone", async () => {
+    await storage.updateGameStatus(gameId, { status: "playing" });
+
+    const result = await storage.updateGameStatus(
+      gameId,
+      { status: "owned" },
+      { preserveCurated: true }
+    );
+
+    expect(result).toBeUndefined();
+    expect((await storage.getGame(gameId))?.status).toBe("playing");
+  });
+
+  it("updateGameStatus with preserveCurated still moves pipeline statuses", async () => {
+    const result = await storage.updateGameStatus(
+      gameId,
+      { status: "downloading" },
+      { preserveCurated: true }
+    );
+
+    expect(result?.status).toBe("downloading");
+  });
+
   it("updateGameStatus clears completedAt when status is not completed", async () => {
     await storage.updateGameStatus(gameId, { status: "completed" });
     const updated = await storage.updateGameStatus(gameId, { status: "owned" });

@@ -24,7 +24,7 @@ import RssFeedList from "@/components/RssFeedList";
 import RssSettings from "@/components/RssSettings";
 import { Rss } from "lucide-react";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
-import { type Game, type Config, type UserSettings } from "@shared/schema";
+import { ACQUIRED_GAME_STATUSES, type Game, type Config, type UserSettings } from "@shared/schema";
 import { type GameStatus } from "@/components/StatusBadge";
 
 const EMPTY_GAMES: Game[] = [];
@@ -133,7 +133,10 @@ export default function DiscoverPage() {
         idMap.set(g.igdbId, g.id);
 
         if (g.hidden) hidden.add(g.igdbId);
-        if (g.status === "owned" || g.status === "completed" || g.status === "downloading") {
+        if (
+          g.status === "downloading" ||
+          (ACQUIRED_GAME_STATUSES as readonly string[]).includes(g.status)
+        ) {
           owned.add(g.igdbId);
         }
         if (g.status === "wanted" && !g.hidden) wanted.add(g.igdbId);

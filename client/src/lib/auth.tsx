@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from "r
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiFetch, apiRequest, setBearerToken } from "./queryClient";
+import { disconnectSocket } from "./socket";
 import { useToast } from "@/hooks/use-toast";
 
 type User = {
@@ -214,6 +215,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
     setBearerToken(null);
+    disconnectSocket();
     setUser(null);
     queryClient.clear();
     setLocation("/login");

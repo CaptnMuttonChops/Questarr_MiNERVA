@@ -319,7 +319,11 @@ describe("Cron — async qBittorrent correlation tag resolution", () => {
       "failed",
       "The download client never registered this download."
     );
-    expect(mockUpdateGameStatus).toHaveBeenCalledWith("game-1", { status: "wanted" });
+    expect(mockUpdateGameStatus).toHaveBeenCalledWith(
+      "game-1",
+      { status: "wanted" },
+      { preserveCurated: true }
+    );
     expect(mockNotifyUser).toHaveBeenCalledWith("downloadUpdate", "game-1");
   });
 
@@ -403,7 +407,11 @@ describe("Cron — async qBittorrent correlation tag resolution", () => {
 
     // After resolution, the download was matched and marked completed + owned.
     expect(mockUpdateGameDownloadStatus).toHaveBeenCalledWith("gd-async-3", "completed");
-    expect(mockUpdateGameStatus).toHaveBeenCalledWith("game-1", { status: "owned" });
+    expect(mockUpdateGameStatus).toHaveBeenCalledWith(
+      "game-1",
+      { status: "owned" },
+      { preserveCurated: true }
+    );
     expect(mockNotifyUser).toHaveBeenCalledWith("downloadUpdate", "game-1");
   });
 });

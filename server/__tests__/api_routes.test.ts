@@ -1142,6 +1142,30 @@ describe("API Routes - Extended Coverage", () => {
       expect(fsExtra.remove).not.toHaveBeenCalled();
     });
 
+    it("should never delete the library root itself when a game's libraryPath points at it", async () => {
+      const gameId = "123e4567-e89b-12d3-a456-426614174000";
+      vi.mocked(storage.getGame).mockResolvedValue({
+        id: gameId,
+        userId: "user-1",
+        libraryPath: "/data/library",
+      } as unknown as Game);
+      vi.mocked(storage.getImportConfig).mockResolvedValue({
+        libraryRoot: "/data/library",
+      } as any);
+      vi.mocked(storage.getAllRootFolders).mockResolvedValue([]);
+      vi.mocked(storage.removeGame).mockResolvedValue(true);
+
+      const response = await request(app).delete(`/api/games/${gameId}?deleteFiles=true`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.fileDeletion).toEqual({
+        deleted: false,
+        reason: "outside-library-root",
+        path: "/data/library",
+      });
+      expect(fsExtra.remove).not.toHaveBeenCalled();
+    });
+
     it("should delete library files outside the library root when their root folder has allowDelete on", async () => {
       const gameId = "123e4567-e89b-12d3-a456-426614174000";
       vi.mocked(storage.getGame).mockResolvedValue({

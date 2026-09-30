@@ -26,6 +26,7 @@ import {
   claimDownloadRequestSchema,
   insertRootFolderSchema,
   updateRootFolderSchema,
+  isUserCuratedGameStatus,
   type Config,
   type Game,
   type Indexer,
@@ -2335,8 +2336,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const config = await storage.getImportConfig(game.userId ?? undefined);
             const resolvedRoot = path.resolve(config.libraryRoot);
             const resolvedTarget = path.resolve(game.libraryPath);
-            const insideRoot =
-              resolvedTarget === resolvedRoot || resolvedTarget.startsWith(resolvedRoot + path.sep);
+            // Strictly inside: a libraryPath that IS the library root (e.g. a
+            // manual import confirmed straight into it) must never let one
+            // game's deletion wipe every other game's files with it.
+            const insideRoot = resolvedTarget.startsWith(resolvedRoot + path.sep);
             // Games discovered by the root-folder scanner live outside the
             // configured library root by design. Allow deleting their files
             // too, but only when the user has explicitly opted that specific
@@ -4236,7 +4239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // gameId comes from the request body, so verify ownership before
         // touching the downloader: otherwise a user who knows another user's
         // game UUID could link a download to that game and flip its status.
-        if (gameId && !(await resolveOwnedGame(gameId, req.user!.id, res))) return;
+        const targetGame = gameId ? await resolveOwnedGame(gameId, req.user!.id, res) : undefined;
+        if (gameId && !targetGame) return;
 
         const enabledDownloaders = await storage.getEnabledDownloaders();
         if (enabledDownloaders.length === 0) {
@@ -4288,7 +4292,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               downloadType: downloadType || "torrent",
             });
 
-            await storage.updateGameStatus(gameId, { status: "downloading" });
+            // An update/DLC grabbed for a game the user is playing (or has
+            // finished/shelved) must not knock it out of that status.
+            if (!isUserCuratedGameStatus(targetGame?.status)) {
+              await storage.updateGameStatus(gameId, { status: "downloading" });
+            }
             await storage.updateGameSearchResultsAvailable(gameId, false);
           } catch (error) {
             routesLogger.error({ error, gameId }, "Failed to link download to game");

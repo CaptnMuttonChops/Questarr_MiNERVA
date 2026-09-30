@@ -109,7 +109,6 @@ describe("isWithinDeletableRootFolder", () => {
     ]);
 
     expect(await isWithinDeletableRootFolder("/mnt/old-library/SomeGame")).toBe(true);
-    expect(await isWithinDeletableRootFolder("/mnt/old-library")).toBe(true);
   });
 
   it.each([
@@ -122,6 +121,11 @@ describe("isWithinDeletableRootFolder", () => {
       name: "a path outside every configured root folder",
       folders: [{ id: "rf-1", path: "/mnt/old-library", allowDelete: true }],
       target: "/etc/passwd",
+    },
+    {
+      name: "the root folder itself, which holds every other game too",
+      folders: [{ id: "rf-1", path: "/mnt/old-library", allowDelete: true }],
+      target: "/mnt/old-library",
     },
     {
       name: "a sibling folder with the same path prefix",

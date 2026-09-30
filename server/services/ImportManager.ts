@@ -17,7 +17,11 @@ import { resolveDownloadRelativePath, buildRemoteImportPath } from "../downloade
 import fs from "fs-extra";
 import path from "node:path";
 import { parseReleaseMetadata } from "../../shared/title-utils.js";
-import { GAME_LINK_REQUIRED_STATUS, QUARANTINED_STATUS } from "../../shared/schema.js";
+import {
+  GAME_LINK_REQUIRED_STATUS,
+  QUARANTINED_STATUS,
+  isUserCuratedGameStatus,
+} from "../../shared/schema.js";
 import { logger } from "../logger.js";
 import { extractHostnameFromUrl } from "../url-utils.js";
 import { isSensitivePath, assertWithinRoots } from "../path-security.js";
@@ -535,7 +539,7 @@ export class ImportManager {
   ): Promise<void> {
     await this.storage.updateGameDownloadStatus(downloadId, "imported");
     await this.storage.updateGame(game.id, { libraryPath });
-    if (game.status !== "owned") {
+    if (game.status !== "owned" && !isUserCuratedGameStatus(game.status)) {
       await this.storage.updateGameStatus(game.id, { status: "owned" });
     }
   }

@@ -97,8 +97,7 @@ export async function isWithinDeletableRootFolder(resolvedTarget: string): Promi
   return folders.some((folder) => {
     if (!folder.allowDelete) return false;
     const resolvedFolder = path.resolve(folder.path);
-    return (
-      resolvedTarget === resolvedFolder || resolvedTarget.startsWith(resolvedFolder + path.sep)
-    );
+    // Strictly inside the root folder, never the root folder itself.
+    return resolvedTarget.startsWith(resolvedFolder + path.sep);
   });
 }

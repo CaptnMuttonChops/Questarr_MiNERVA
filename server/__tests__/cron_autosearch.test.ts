@@ -1584,6 +1584,59 @@ describe("Cron - checkAutoSearch", () => {
         "Test Game-UNKNOWN",
       ]);
     });
+
+    it("should keep Usenet releases when minSeeders is set, since they have no seeders", () => {
+      const nzb = {
+        title: "Test Game-NZB",
+        link: "https://example.com/nzb",
+        pubDate: FIXED_PUB_DATE,
+        size: 10_000,
+        grabs: 12,
+        downloadType: "usenet" as const,
+        indexerId: "indexer-1",
+      };
+      const torrent = {
+        ...ITEM_LOW_SEEDERS,
+        downloadType: "torrent" as const,
+        indexerId: "indexer-1",
+      };
+
+      const result = categorizeSearchItems([torrent, nzb] as never, {
+        minSeeders: 10,
+        sortBy: "seeders",
+        visibleCategoriesSet: new Set(["main"]),
+      });
+
+      expect(result.mainItems.map((item) => item.title)).toEqual(["Test Game-NZB"]);
+    });
+
+    it("should rank Usenet releases by grabs when sorting by seeders", () => {
+      const popularNzb = {
+        title: "Test Game-POPULAR",
+        link: "https://example.com/popular",
+        pubDate: FIXED_PUB_DATE,
+        size: 10_000,
+        grabs: 500,
+        downloadType: "usenet" as const,
+        indexerId: "indexer-1",
+      };
+      const torrent = {
+        ...ITEM_HIGH_SEEDERS,
+        downloadType: "torrent" as const,
+        indexerId: "indexer-1",
+      };
+
+      const result = categorizeSearchItems([torrent, popularNzb] as never, {
+        minSeeders: 0,
+        sortBy: "seeders",
+        visibleCategoriesSet: new Set(["main"]),
+      });
+
+      expect(result.mainItems.map((item) => item.title)).toEqual([
+        "Test Game-POPULAR",
+        "Test Game-CODEX",
+      ]);
+    });
   });
 
   describe("Notification dedup (transition gating)", () => {

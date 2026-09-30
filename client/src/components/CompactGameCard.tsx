@@ -581,6 +581,8 @@ const CompactGameCard = ({
                     return <span className="text-[11px]">✔</span>;
                   } else if (game.status === "shelved") {
                     return <span className="text-[11px]">📦</span>;
+                  } else if (game.status === "playing") {
+                    return <span className="text-[11px]">🎮</span>;
                   } else {
                     return <span className="text-[11px]">★</span>;
                   }

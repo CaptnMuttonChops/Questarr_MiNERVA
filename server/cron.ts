@@ -22,6 +22,8 @@ import { importManager } from "./services/index.js";
 import {
   downloadRulesSchema,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  ACQUIRED_GAME_STATUSES,
+  isUserCuratedGameStatus,
   type Game,
   type InsertNotification,
   type NotificationEvent,
@@ -56,7 +58,9 @@ const AUTO_SEARCH_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const STEAM_SYNC_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour (per-user interval gates actual sync)
 const XREL_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours (xREL search rate limit: 2/5s)
 const CLIENT_VERSION_LOG_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
-const OWNED_STATUSES = new Set(["owned", "completed", "downloading"]);
+// Every status where the user already has the game, so update/pack searches
+// keep running while it's being played or shelved too.
+const OWNED_STATUSES = new Set<string>([...ACQUIRED_GAME_STATUSES, "downloading"]);
 
 const GAME_UPDATE_TITLE_TO_EVENT: Record<string, NotificationEvent> = {
   "Game Released": "gameReleased",
@@ -157,6 +161,10 @@ function getAutoSearchRules(downloadRules: string | null): AutoSearchRules {
   return { minSeeders, sortBy, visibleCategoriesSet };
 }
 
+function releaseHealth(item: SearchItem): number {
+  return item.downloadType === "usenet" ? (item.grabs ?? 0) : (item.seeders ?? 0);
+}
+
 // Exported for unit testing of the sort/filter/category logic in isolation.
 export function categorizeSearchItems(
   items: SearchItem[],
@@ -164,13 +172,13 @@ export function categorizeSearchItems(
   indexerPriorityMap?: Map<string, number>
 ): AutoSearchCategorizedItems {
   const sortedItems = items
-    .filter((item) => {
-      const seeders = item.seeders ?? 0;
-      return seeders >= rules.minSeeders;
-    })
+    // Usenet releases have no seeders, so the seeder floor only applies to
+    // torrents (same rule as the manual download dialog); their health signal
+    // for sorting is the grab count instead.
+    .filter((item) => item.downloadType === "usenet" || (item.seeders ?? 0) >= rules.minSeeders)
     .sort((a, b) => {
       if (rules.sortBy === "seeders") {
-        return (b.seeders ?? 0) - (a.seeders ?? 0);
+        return releaseHealth(b) - releaseHealth(a);
       }
       if (rules.sortBy === "date") {
         return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
@@ -785,7 +793,11 @@ export async function checkDownloadStatus() {
               );
               if (!hasActiveSibling) {
                 const failedGame = await storage.getGame(download.gameId);
-                if (failedGame && failedGame.status !== "wanted") {
+                if (
+                  failedGame &&
+                  failedGame.status !== "wanted" &&
+                  !isUserCuratedGameStatus(failedGame.status)
+                ) {
                   await storage.updateGameStatus(download.gameId, { status: "wanted" });
                   igdbLogger.debug(
                     { gameId: download.gameId, oldStatus: failedGame.status, newStatus: "wanted" },
@@ -942,8 +954,11 @@ export async function checkDownloadStatus() {
               // Update DB - mark as completed
               await storage.updateGameDownloadStatus(download.id, "completed");
 
-              // Update Game status to 'owned' (which means we have the files)
-              await storage.updateGameStatus(download.gameId, { status: "owned" });
+              // Update Game status to 'owned' (which means we have the files), unless
+              // the user already moved it past that (e.g. an update for a game they're playing).
+              if (!isUserCuratedGameStatus(game?.status)) {
+                await storage.updateGameStatus(download.gameId, { status: "owned" });
+              }
 
               igdbLogger.info(
                 { gameId: download.gameId, downloadId: download.id },
@@ -1059,7 +1074,12 @@ export async function checkDownloadStatus() {
             }
 
             const game = await storage.getGame(download.gameId);
-            if (!skipGameStatusUpdate && game && game.status !== newGameStatus) {
+            if (
+              !skipGameStatusUpdate &&
+              game &&
+              game.status !== newGameStatus &&
+              !isUserCuratedGameStatus(game.status)
+            ) {
               await storage.updateGameStatus(download.gameId, { status: newGameStatus });
               igdbLogger.debug(
                 { gameId: download.gameId, oldStatus: game.status, newStatus: newGameStatus },
@@ -1151,7 +1171,11 @@ export async function checkDownloadStatus() {
           const hasActiveSibling = siblings.some(
             (s) => s.id !== download.id && activeStatuses.has(s.status)
           );
-          const willResetGame = !hasActiveSibling && !!game && game.status !== "wanted";
+          const willResetGame =
+            !hasActiveSibling &&
+            !!game &&
+            game.status !== "wanted" &&
+            !isUserCuratedGameStatus(game.status);
 
           const missedErrorMessage = willResetGame
             ? "Download disappeared from the downloader before completing. It may have " +

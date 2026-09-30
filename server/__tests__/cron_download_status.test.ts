@@ -467,6 +467,55 @@ describe("Cron - checkDownloadStatus", () => {
     expect(mockProcessImport).not.toHaveBeenCalled();
   });
 
+  it("should keep a playing game's status when its update download completes", async () => {
+    mockGetGame.mockResolvedValue({
+      id: "game-1",
+      title: "Test Game",
+      status: "playing",
+      userId: "user-1",
+    });
+    mockGetDownloadingGameDownloads.mockResolvedValue([baseDownload]);
+    mockGetDownloader.mockResolvedValue(baseDownloader);
+    mockGetAllDownloads.mockResolvedValue([
+      {
+        id: "SABnzbd_nzo_abc123",
+        name: "Test Game",
+        status: "completed",
+        progress: 100,
+        downloadType: "usenet",
+      },
+    ]);
+
+    await checkDownloadStatus();
+
+    expect(mockUpdateGameDownloadStatus).toHaveBeenCalledWith(baseDownload.id, "completed");
+    expect(mockUpdateGameStatus).not.toHaveBeenCalled();
+  });
+
+  it("should not reset a completed game to wanted when its update download disappears", async () => {
+    mockGetGame.mockResolvedValue({
+      id: "game-1",
+      title: "Test Game",
+      status: "completed",
+      userId: "user-1",
+    });
+    mockGetDownloadingGameDownloads.mockResolvedValue([baseDownload]);
+    mockGetDownloader.mockResolvedValue(baseDownloader);
+    mockGetAllDownloads.mockResolvedValue([]);
+    mockGetDownloadStatus.mockResolvedValue(null);
+
+    await checkDownloadStatus();
+    await checkDownloadStatus();
+    await checkDownloadStatus();
+
+    expect(mockUpdateGameDownloadStatus).toHaveBeenCalledWith(
+      baseDownload.id,
+      "failed",
+      expect.any(String)
+    );
+    expect(mockUpdateGameStatus).not.toHaveBeenCalled();
+  });
+
   // Reproduction test for the large-archive "extraction restarts" bug:
   // when processImport() starts extracting a large .rar it sets the DB row to
   // "unpacking" (ImportManager.ts). checkDownloadStatus() runs every 60s and

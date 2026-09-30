@@ -25,6 +25,7 @@ import { categorizeDownload } from "../shared/download-categorizer.js";
 import { igdbLogger, routesLogger } from "./logger.js";
 import { notifyUser } from "./socket.js";
 import type { InsertGame, InsertGameFile, GameFileCategory } from "../shared/schema.js";
+import { isUserCuratedGameStatus } from "../shared/schema.js";
 
 // ---------- Types ----------
 
@@ -347,7 +348,7 @@ export async function matchUnmatchedFolder(
     game = await storage.addGame(igdbToInsertGame(igdb, userId));
     await storage.updateGame(game.id, { libraryPath: absolutePath });
   } else {
-    if (game.status !== "owned") {
+    if (game.status !== "owned" && !isUserCuratedGameStatus(game.status)) {
       await storage.updateGameStatus(game.id, { status: "owned" });
     }
     if (!game.libraryPath) {
@@ -419,7 +420,7 @@ async function recordMatchedCandidate(
     game = await storage.addGame(igdbToInsertGame(best, userId));
     await storage.updateGame(game.id, { libraryPath: cand.absolutePath });
   } else {
-    if (game.status !== "owned") {
+    if (game.status !== "owned" && !isUserCuratedGameStatus(game.status)) {
       await storage.updateGameStatus(game.id, { status: "owned" });
     }
     // An existing game (e.g. added manually or via wishlist) may not have a

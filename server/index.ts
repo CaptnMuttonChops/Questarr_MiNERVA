@@ -148,14 +148,20 @@ process.on("unhandledRejection", (reason) => handleFatalError("unhandledRejectio
           // Setup Socket.IO for HTTPS server as well
           setupSocketIO(httpsServer);
 
-          httpsServer.listen(ssl.port, host, () => {
-            log(`HTTPS server serving on ${host}:${ssl.port}`);
+          // A port clash surfaces as an async "error" event, not a throw, so
+          // the catch below never sees it. Log it and leave HTTP serving.
+          httpsServer.on("error", (error) => {
+            log("Failed to start HTTPS server: " + String(error));
           });
 
-          // HTTP to HTTPS redirect
-          if (ssl.redirectHttp) {
-            httpsRedirectPort = ssl.port;
-          }
+          httpsServer.listen(ssl.port, host, () => {
+            log(`HTTPS server serving on ${host}:${ssl.port}`);
+            // Only redirect once HTTPS is actually listening, so a listener
+            // that fails to bind never locks users out of the HTTP one.
+            if (ssl.redirectHttp) {
+              httpsRedirectPort = ssl.port;
+            }
+          });
         }
       } catch (error) {
         log("Failed to start HTTPS server: " + String(error));

@@ -1,3 +1,4 @@
+import { coverSrc } from "@/lib/cover";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
@@ -700,7 +701,7 @@ function GameBadge({
             )}
           >
             <img
-              src={game.coverUrl || "/placeholder-game-cover.jpg"}
+              src={coverSrc(game.coverUrl)}
               alt={game.title}
               className="w-6 h-6 rounded object-cover"
             />
@@ -756,7 +757,7 @@ function GameBadge({
           )}
         >
           <img
-            src={game.coverUrl || "/placeholder-game-cover.jpg"}
+            src={coverSrc(game.coverUrl)}
             alt={game.title}
             className="w-12 h-12 rounded object-cover flex-shrink-0"
           />

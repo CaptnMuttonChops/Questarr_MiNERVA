@@ -245,7 +245,11 @@ describe("scanRootFolderById full scan", () => {
 
     // Existing, not-yet-owned game gets promoted to owned rather than re-created,
     // and since it had no libraryPath yet, the discovered folder is set on it too.
-    expect(storage.updateGameStatus).toHaveBeenCalledWith("existing-game", { status: "owned" });
+    expect(storage.updateGameStatus).toHaveBeenCalledWith(
+      "existing-game",
+      { status: "owned" },
+      { preserveCurated: true }
+    );
     expect(storage.updateGame).toHaveBeenCalledWith("existing-game", {
       libraryPath: path.join(tmpDir, "Existing Game"),
     });
@@ -354,5 +358,40 @@ describe("existing game libraryPath handling", () => {
     // update call should fire, let alone overwrite the managed path.
     expect(storage.updateGameStatus).not.toHaveBeenCalled();
     expect(storage.updateGame).not.toHaveBeenCalled();
+  });
+
+  it("keeps a playing game's status when a scan finds its folder", async () => {
+    const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "questarr-playing-"));
+    await fs.promises.mkdir(path.join(tmpDir, "Portal 2"));
+    await fs.promises.writeFile(path.join(tmpDir, "Portal 2", "setup.exe"), "x");
+    const rootFolder: RootFolder = { ...mockRootFolder, id: "rf-playing", path: tmpDir };
+
+    const { storage } = await import("../storage.js");
+    vi.mocked(storage.getRootFolder).mockResolvedValue(rootFolder);
+    vi.mocked(storage.getGameFiles).mockResolvedValue([]);
+    vi.mocked(storage.addGameFile).mockResolvedValue(undefined as never);
+    vi.mocked(storage.updateGame).mockResolvedValue(undefined as never);
+    vi.mocked(storage.updateGameStatus).mockResolvedValue(undefined as never);
+    vi.mocked(storage.touchRootFolderScanned).mockResolvedValue(undefined);
+    vi.mocked(storage.getGameByIgdbId).mockResolvedValue({
+      id: "playing-game",
+      status: "playing",
+      igdbId: 7,
+      libraryPath: null,
+    } as unknown as Game);
+
+    const { igdbClient } = await import("../igdb.js");
+    vi.mocked(igdbClient.searchGames).mockResolvedValue([{ id: 7, name: "Portal 2" }] as never);
+
+    vi.mocked(storage.updateGameStatus).mockClear();
+    vi.mocked(storage.updateGame).mockClear();
+
+    await scanRootFolderById("rf-playing", "user-1");
+
+    expect(storage.updateGameStatus).not.toHaveBeenCalled();
+    // The discovered folder is still recorded on the game.
+    expect(storage.updateGame).toHaveBeenCalledWith("playing-game", {
+      libraryPath: path.join(tmpDir, "Portal 2"),
+    });
   });
 });

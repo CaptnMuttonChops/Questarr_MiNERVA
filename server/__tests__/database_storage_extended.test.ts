@@ -160,6 +160,24 @@ describe("DatabaseStorage Extended Coverage", () => {
       expect(statusUpdated?.status).toBe("completed");
       expect(statusUpdated?.completedAt).toBeTruthy();
 
+      // An automated update checks the status in the same UPDATE, so the
+      // user's pick survives even if the caller read the game earlier.
+      const skipped = await storage.updateGameStatus(
+        game.id,
+        { status: "owned" },
+        { preserveCurated: true }
+      );
+      expect(skipped).toBeUndefined();
+      expect((await storage.getGame(game.id))?.status).toBe("completed");
+
+      await storage.updateGameStatus(game.id, { status: "wanted" });
+      const moved = await storage.updateGameStatus(
+        game.id,
+        { status: "downloading" },
+        { preserveCurated: true }
+      );
+      expect(moved?.status).toBe("downloading");
+
       const hiddenUpdated = await storage.updateGameHidden(game.id, true);
       expect(hiddenUpdated?.hidden).toBe(true);
 

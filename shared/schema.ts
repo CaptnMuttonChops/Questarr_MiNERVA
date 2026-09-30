@@ -548,6 +548,21 @@ export const GAME_STATUSES = [
 ] as const;
 export type GameStatus = (typeof GAME_STATUSES)[number];
 
+/**
+ * Statuses only the user sets: they describe where the user is with a game
+ * they already have, not where its download is. The download/import pipeline
+ * must never overwrite them (e.g. an update download finishing must not turn
+ * a "playing" game back into "owned").
+ */
+export const USER_CURATED_GAME_STATUSES = ["playing", "shelved", "completed"] as const;
+
+export function isUserCuratedGameStatus(status: string | null | undefined): boolean {
+  return (USER_CURATED_GAME_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+/** Statuses meaning the user already has the game (as opposed to wanting it). */
+export const ACQUIRED_GAME_STATUSES = ["owned", ...USER_CURATED_GAME_STATUSES] as const;
+
 export const updateGameStatusSchema = z.object({
   status: z.enum(GAME_STATUSES),
   completedAt: z.date().optional(),

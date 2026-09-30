@@ -1,7 +1,7 @@
 // Force restart trigger
 import "dotenv/config";
 import https from "https";
-import type { RequestListener } from "http";
+import type { RequestListener } from "node:http";
 import fs from "fs";
 
 import { createApp } from "./app.js";

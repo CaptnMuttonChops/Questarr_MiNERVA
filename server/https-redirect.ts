@@ -1,4 +1,4 @@
-import { isIP } from "net";
+import { isIP } from "node:net";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 
 /**

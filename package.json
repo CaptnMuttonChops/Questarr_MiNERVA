@@ -221,7 +221,8 @@
     },
     "eslint-plugin-react": {
       "eslint": "^10.9.1"
-    }
+    },
+    "engine.io": "^6.6.10"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,

@@ -33,9 +33,13 @@ export function IgdbHelpPopover() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 rounded-full"
+          aria-label="How to get credentials"
+        >
           <HelpCircle className="h-4 w-4 text-muted-foreground" />
-          <span className="sr-only">How to get credentials</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80">

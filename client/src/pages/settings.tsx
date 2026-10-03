@@ -2012,7 +2012,7 @@ export default function SettingsPage() {
                   DLC, update, repack...) and flag suspiciously small files in search results.
                   Entirely optional and off by default &mdash; Questarr works normally without it.
                   Bring your own API key and endpoint (TypeSafe, OpenRouter, a self-hosted proxy,
-                  etc.).
+                  etc.).{" "}
                   <span className="mt-2 block text-amber-500">
                     Experimental: Jev classifications can be wrong, and how they are used may change
                     between releases. Check flagged results before relying on them.

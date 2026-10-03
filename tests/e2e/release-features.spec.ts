@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { patchUserSettings } from "./helpers";
 
 test.describe("v1.5 release feature journeys", () => {
+  test.describe.configure({ mode: "serial" });
+
   test("shows persisted DLC and expansion metadata in game details", async ({ page }) => {
     await page.route("/api/games*", async (route) => {
       await route.fulfill({
@@ -41,44 +44,47 @@ test.describe("v1.5 release feature journeys", () => {
   });
 
   test("saves platform preference and content filters", async ({ page }) => {
-    await page.goto("/settings");
-    // Content filters are on Appearance; platform preference is on Discovery & Downloads.
-    await page.getByRole("tab", { name: "Appearance" }).click();
+    const initialResponse = await page.request.get("/api/settings");
+    expect(initialResponse.ok()).toBe(true);
+    const initialSettings = (await initialResponse.json()) as {
+      hideAdultContent: boolean;
+      hideAgeRestrictedContent: boolean;
+      preferredPlatform: string | null;
+    };
 
-    const adultFilter = page.getByLabel("Hide erotic content");
-    if (await adultFilter.isChecked()) await adultFilter.click();
-    const ageFilter = page.getByLabel("Hide age-restricted content");
-    if (await ageFilter.isChecked()) await ageFilter.click();
-    await page.getByRole("button", { name: "Save Content Filtering" }).click();
-    await expect(
-      page.getByText("Content filtering preferences have been saved.", { exact: true })
-    ).toBeVisible();
+    try {
+      await page.goto("/settings");
+      // Content filters are on Appearance; platform preference is on Discovery & Downloads.
+      await page.getByRole("tab", { name: "Appearance" }).click();
 
-    const settingsAfterFilters = await page.request.get("/api/settings");
-    expect(await settingsAfterFilters.json()).toMatchObject({
-      hideAdultContent: false,
-      hideAgeRestrictedContent: false,
-    });
+      const adultFilter = page.getByLabel("Hide erotic content");
+      if (await adultFilter.isChecked()) await adultFilter.click();
+      const ageFilter = page.getByLabel("Hide age-restricted content");
+      if (await ageFilter.isChecked()) await ageFilter.click();
+      await page.getByRole("button", { name: "Save Content Filtering" }).click();
+      await expect(
+        page.getByText("Content filtering preferences have been saved.", { exact: true })
+      ).toBeVisible();
 
-    await page.getByRole("tab", { name: "Discovery & Downloads" }).click();
-    await page.getByLabel("Preferred Platform").click();
-    await page.getByRole("option", { name: "PS5", exact: true }).click();
-    await page.getByRole("button", { name: "Save Auto-Search" }).click();
-    await expect(
-      page.getByText("Your auto-search preferences have been saved.", { exact: true })
-    ).toBeVisible();
+      const settingsAfterFilters = await page.request.get("/api/settings");
+      expect(await settingsAfterFilters.json()).toMatchObject({
+        hideAdultContent: false,
+        hideAgeRestrictedContent: false,
+      });
 
-    const settingsAfterPlatform = await page.request.get("/api/settings");
-    expect((await settingsAfterPlatform.json()).preferredPlatform).toBe("PS5");
+      await page.getByRole("tab", { name: "Discovery & Downloads" }).click();
+      await page.getByLabel("Preferred Platform").click();
+      await page.getByRole("option", { name: "PS5", exact: true }).click();
+      await page.getByRole("button", { name: "Save Auto-Search" }).click();
+      await expect(
+        page.getByText("Your auto-search preferences have been saved.", { exact: true })
+      ).toBeVisible();
 
-    // Return the shared E2E account to its defaults for the other journeys.
-    await page.getByLabel("Preferred Platform").click();
-    await page.getByRole("option", { name: "No preference", exact: true }).click();
-    await page.getByRole("button", { name: "Save Auto-Search" }).click();
-    await page.getByRole("tab", { name: "Appearance" }).click();
-    await adultFilter.click();
-    await ageFilter.click();
-    await page.getByRole("button", { name: "Save Content Filtering" }).click();
+      const settingsAfterPlatform = await page.request.get("/api/settings");
+      expect((await settingsAfterPlatform.json()).preferredPlatform).toBe("PS5");
+    } finally {
+      await patchUserSettings(page, initialSettings);
+    }
   });
 
   test("links an orphaned download to a library game", async ({ page }) => {

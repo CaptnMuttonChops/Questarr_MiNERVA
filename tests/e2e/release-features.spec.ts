@@ -160,6 +160,10 @@ test.describe("v1.5 release feature journeys", () => {
 
     await page.goto("/settings");
     await page.getByRole("tab", { name: "Import" }).click();
+    await page
+      .getByRole("tabpanel", { name: "Import" })
+      .getByRole("tab", { name: "Discover" })
+      .click();
     await page.getByRole("button", { name: "Add Folder" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Path").fill(rootFolder.path);

@@ -64,13 +64,31 @@ describe("serveStatic", () => {
     expect(response.text).toContain(`<base href="${href}" />`);
   });
 
-  it("measures the depth inside QUESTARR_BASE_PATH, not from the host root", async () => {
+  const createMountedApp = () => {
     const root = express();
     const app = express();
     serveStatic(app, distPath, "/Questarr");
     root.use("/Questarr", app);
-    const response = await request(root).get("/Questarr/activity/imports");
+    return root;
+  };
+
+  it("measures the depth inside QUESTARR_BASE_PATH, not from the host root", async () => {
+    const response = await request(createMountedApp()).get("/Questarr/activity/imports");
     expect(response.text).toContain('<base href="../" />');
+  });
+
+  it("strips QUESTARR_BASE_PATH whatever its case, as Express mounts it", async () => {
+    const response = await request(createMountedApp()).get("/questarr/activity/imports");
+    expect(response.text).toContain('<base href="../" />');
+  });
+
+  it.each([
+    ["/Questarr", "/Questarr/"],
+    ["/Questarr?tab=all", "/Questarr/?tab=all"],
+  ])("redirects the bare mount root %s to %s", async (url, location) => {
+    const response = await request(createMountedApp()).get(url);
+    expect(response.status).toBe(301);
+    expect(response.headers.location).toBe(location);
   });
 
   it("still serves built assets as files", async () => {

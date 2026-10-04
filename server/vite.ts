@@ -115,8 +115,10 @@ export function serveStatic(
   // fall through to index.html if the file doesn't exist
   app.use("*", staticAssetLimiter, (req, res) => {
     const pathname = req.originalUrl.split("?")[0] ?? "/";
-    const appPath =
-      basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) : pathname;
+    // Express matches the mount path case-insensitively, so strip it the same way. The bare
+    // mount root ("/Questarr") never gets here: express.static redirects it to "/Questarr/".
+    const mounted = basePath && pathname.toLowerCase().startsWith(basePath.toLowerCase());
+    const appPath = mounted ? pathname.slice(basePath.length) : pathname;
     res.type("html").send(withBaseHref(indexHtml, relativeBaseHref(appPath || "/")));
   });
 }

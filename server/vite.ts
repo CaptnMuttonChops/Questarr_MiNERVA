@@ -5,6 +5,7 @@ import { type Server } from "http";
 import { nanoid } from "nanoid";
 import { expressLogger } from "./logger.js";
 import { staticAssetLimiter } from "./middleware.js";
+import { config } from "./config.js";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -76,6 +77,16 @@ export async function setupVite(app: Express, server: Server) {
   }
 }
 
+/**
+ * The client is built with relative asset URLs ("./assets/...") so one build serves any
+ * QUESTARR_BASE_PATH. Without a <base>, a direct load or refresh of a nested route such as
+ * /activity/imports resolves them against /activity/, gets index.html back instead of the
+ * script, and renders a blank page.
+ */
+export function withBaseHref(html: string, basePath: string): string {
+  return html.replace("<head>", `<head>\n    <base href="${basePath}/" />`);
+}
+
 export async function serveStatic(app: Express) {
   const distPath = path.resolve(import.meta.dirname, "..", "public");
 
@@ -85,10 +96,16 @@ export async function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // index: false sends "/" through the handler below too, so every page gets the <base>.
+  app.use(express.static(distPath, { index: false }));
+
+  const indexHtml = withBaseHref(
+    fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8"),
+    config.server.basePath
+  );
 
   // fall through to index.html if the file doesn't exist
   app.use("*", staticAssetLimiter, (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    res.type("html").send(indexHtml);
   });
 }

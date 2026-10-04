@@ -31,6 +31,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:stack": "playwright test -c playwright.stack.config.ts",
     "reset-password": "tsx scripts/reset-password.ts",
     "check:overrides": "node scripts/check-overrides.mjs",
     "audit:prod": "node scripts/audit-prod.mjs",

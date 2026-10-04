@@ -78,18 +78,28 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 /**
- * The client is built with relative asset URLs ("./assets/...") so one build serves any
- * QUESTARR_BASE_PATH. Without a <base>, a direct load or refresh of a nested route such as
- * /activity/imports resolves them against /activity/, gets index.html back instead of the
- * script, and renders a blank page.
+ * The client is built with relative asset URLs ("./assets/...") so one build serves the app
+ * at the root, under QUESTARR_BASE_PATH, or behind a proxy that strips its own prefix. Those
+ * resolve against the page's directory, so a direct load or refresh of a nested route such as
+ * /activity/imports asked for /activity/assets/..., got index.html back instead of the script
+ * and rendered a blank page. A relative <base> that climbs back to the app root fixes that
+ * without the server knowing the external prefix.
+ *
+ * @param appPath - The request path inside the app, without QUESTARR_BASE_PATH or query.
  */
-export function withBaseHref(html: string, basePath: string): string {
-  return html.replace("<head>", `<head>\n    <base href="${basePath}/" />`);
+export function relativeBaseHref(appPath: string): string {
+  const depth = Math.max(0, (appPath.match(/\//g)?.length ?? 1) - 1);
+  return depth === 0 ? "./" : "../".repeat(depth);
+}
+
+export function withBaseHref(html: string, href: string): string {
+  return html.replace("<head>", `<head>\n    <base href="${href}" />`);
 }
 
 export function serveStatic(
   app: Express,
-  distPath = path.resolve(import.meta.dirname, "..", "public")
+  distPath = path.resolve(import.meta.dirname, "..", "public"),
+  basePath: string = config.server.basePath
 ) {
   if (!fs.existsSync(distPath)) {
     throw new Error(
@@ -100,13 +110,13 @@ export function serveStatic(
   // index: false sends "/" through the handler below too, so every page gets the <base>.
   app.use(express.static(distPath, { index: false }));
 
-  const indexHtml = withBaseHref(
-    fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8"),
-    config.server.basePath
-  );
+  const indexHtml = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", staticAssetLimiter, (_req, res) => {
-    res.type("html").send(indexHtml);
+  app.use("*", staticAssetLimiter, (req, res) => {
+    const pathname = req.originalUrl.split("?")[0] ?? "/";
+    const appPath =
+      basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) : pathname;
+    res.type("html").send(withBaseHref(indexHtml, relativeBaseHref(appPath || "/")));
   });
 }

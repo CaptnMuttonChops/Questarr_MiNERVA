@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
-import { serveStatic, withBaseHref } from "../vite.js";
+import { relativeBaseHref, serveStatic, withBaseHref } from "../vite.js";
 
 const builtIndex = `<!doctype html>
 <html lang="en">
@@ -14,16 +14,30 @@ const builtIndex = `<!doctype html>
   <body><div id="root"></div></body>
 </html>`;
 
-describe("withBaseHref", () => {
-  it("anchors relative asset URLs at the site root when no base path is set", () => {
-    const html = withBaseHref(builtIndex, "");
-    // A deep link such as /activity/imports must load /assets/..., not /activity/assets/...
-    expect(html).toContain('<head>\n    <base href="/" />');
+describe("relativeBaseHref", () => {
+  it.each([
+    ["/", "./"],
+    ["/settings", "./"],
+    ["/activity/imports", "../"],
+    ["/activity/imports/", "../../"],
+  ])("climbs from %s back to the app root with %s", (appPath, href) => {
+    expect(relativeBaseHref(appPath)).toBe(href);
   });
 
-  it("anchors them at QUESTARR_BASE_PATH behind a reverse proxy", () => {
-    const html = withBaseHref(builtIndex, "/Questarr");
-    expect(html).toContain('<base href="/Questarr/" />');
+  it("keeps an external prefix that a proxy stripped", () => {
+    // The browser is on /Questarr/activity/imports; Questarr only sees /activity/imports.
+    const base = new URL(
+      relativeBaseHref("/activity/imports"),
+      "http://host/Questarr/activity/imports"
+    );
+    expect(new URL("./assets/index-abc.js", base).pathname).toBe("/Questarr/assets/index-abc.js");
+  });
+});
+
+describe("withBaseHref", () => {
+  it("puts the <base> before the relative asset URLs", () => {
+    const html = withBaseHref(builtIndex, "../");
+    expect(html).toContain('<head>\n    <base href="../" />');
     expect(html.indexOf("<base")).toBeLessThan(html.indexOf("./assets/index-abc.js"));
   });
 });
@@ -40,11 +54,23 @@ describe("serveStatic", () => {
     return app;
   };
 
-  it.each(["/", "/activity/imports"])("serves index.html with the <base> at %s", async (url) => {
+  it.each([
+    ["/", "./"],
+    ["/activity/imports?tab=all", "../"],
+  ])("serves index.html at %s with <base href=%s>", async (url, href) => {
     const response = await request(createApp()).get(url);
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
-    expect(response.text).toContain('<base href="/" />');
+    expect(response.text).toContain(`<base href="${href}" />`);
+  });
+
+  it("measures the depth inside QUESTARR_BASE_PATH, not from the host root", async () => {
+    const root = express();
+    const app = express();
+    serveStatic(app, distPath, "/Questarr");
+    root.use("/Questarr", app);
+    const response = await request(root).get("/Questarr/activity/imports");
+    expect(response.text).toContain('<base href="../" />');
   });
 
   it("still serves built assets as files", async () => {

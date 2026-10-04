@@ -8,9 +8,9 @@ test.describe("Release name blacklist journey", () => {
     const term = `E2E-BLACKLIST-${uniqueId()}`;
     const initialResponse = await page.request.get("/api/settings");
     expect(initialResponse.ok()).toBe(true);
-    const initialBlacklist =
-      ((await initialResponse.json()).releaseNameBlacklist as string | null) ?? "[]";
-    const initialTerms = JSON.parse(initialBlacklist) as string[];
+    // Keep the raw value (possibly null) for cleanup; only parsing falls back to an empty list.
+    const initialBlacklist = (await initialResponse.json()).releaseNameBlacklist as string | null;
+    const initialTerms = JSON.parse(initialBlacklist ?? "[]") as string[];
 
     try {
       await page.goto("/settings");

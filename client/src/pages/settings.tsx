@@ -1994,7 +1994,7 @@ export default function SettingsPage() {
                     <CardTitle className="text-lg">AI Release Analysis (TypeSafe)</CardTitle>
                     <Badge
                       variant="outline"
-                      className="gap-1 border-amber-500/50 text-amber-500"
+                      className="gap-1 border-amber-600/50 text-amber-700 in-[.dark]:border-amber-500/50 in-[.dark]:text-amber-500"
                       title="Experimental feature: behavior and results may change between releases"
                     >
                       <FlaskConical className="h-3 w-3" aria-hidden="true" />
@@ -2013,7 +2013,7 @@ export default function SettingsPage() {
                   Entirely optional and off by default &mdash; Questarr works normally without it.
                   Bring your own API key and endpoint (TypeSafe, OpenRouter, a self-hosted proxy,
                   etc.).{" "}
-                  <span className="mt-2 block text-amber-500">
+                  <span className="mt-2 block text-amber-700 in-[.dark]:text-amber-500">
                     Experimental: Jev classifications can be wrong, and how they are used may change
                     between releases. Check flagged results before relying on them.
                   </span>

@@ -87,9 +87,10 @@ export function withBaseHref(html: string, basePath: string): string {
   return html.replace("<head>", `<head>\n    <base href="${basePath}/" />`);
 }
 
-export async function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "..", "public");
-
+export async function serveStatic(
+  app: Express,
+  distPath = path.resolve(import.meta.dirname, "..", "public")
+) {
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`

@@ -1,5 +1,10 @@
+import express from "express";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import request from "supertest";
 import { describe, expect, it } from "vitest";
-import { withBaseHref } from "../vite.js";
+import { serveStatic, withBaseHref } from "../vite.js";
 
 const builtIndex = `<!doctype html>
 <html lang="en">
@@ -20,5 +25,31 @@ describe("withBaseHref", () => {
     const html = withBaseHref(builtIndex, "/Questarr");
     expect(html).toContain('<base href="/Questarr/" />');
     expect(html.indexOf("<base")).toBeLessThan(html.indexOf("./assets/index-abc.js"));
+  });
+});
+
+describe("serveStatic", () => {
+  const distPath = mkdtempSync(path.join(tmpdir(), "questarr-dist-"));
+  mkdirSync(path.join(distPath, "assets"));
+  writeFileSync(path.join(distPath, "index.html"), builtIndex);
+  writeFileSync(path.join(distPath, "assets", "index-abc.js"), "console.log('app');");
+
+  const createApp = async () => {
+    const app = express();
+    await serveStatic(app, distPath);
+    return app;
+  };
+
+  it.each(["/", "/activity/imports"])("serves index.html with the <base> at %s", async (url) => {
+    const response = await request(await createApp()).get(url);
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/html");
+    expect(response.text).toContain('<base href="/" />');
+  });
+
+  it("still serves built assets as files", async () => {
+    const response = await request(await createApp()).get("/assets/index-abc.js");
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("javascript");
   });
 });

@@ -11,7 +11,7 @@
       "vulnerability": {
         "@id": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
         "name": "GHSA-86w9-cpqp-85rv",
-        "aliases": ["CVE-2026-33894", "CVE-2026-85393", "GHSA-ppp5-5v6c-4jwp"]
+        "aliases": ["CVE-2026-85393"]
       },
       "timestamp": "2026-10-04T11:15:00Z",
       "products": [

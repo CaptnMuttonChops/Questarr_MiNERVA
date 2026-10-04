@@ -46,17 +46,49 @@ function readAuditReport(reportPath) {
   }
 }
 
-function suppressedAdvisoryIds() {
+// Maps each advisory ID covered by a not_affected/fixed statement to the npm products
+// (name + optional version) that statement covers, so a suppression never outlives the
+// exact package version it was assessed against.
+function suppressionsByAdvisory() {
   const vex = JSON.parse(readFileSync(VEX_PATH, "utf8"));
-  const ids = new Set();
+  const byId = new Map();
   for (const statement of vex.statements ?? []) {
     if (!SUPPRESSING_STATUSES.has(statement.status)) continue;
+    const products = (statement.products ?? []).map((p) => parseNpmPurl(p["@id"])).filter(Boolean);
     const vuln = statement.vulnerability ?? {};
     for (const id of [vuln.name, ...(vuln.aliases ?? [])]) {
-      if (id) ids.add(id.toUpperCase());
+      if (!id) continue;
+      const key = id.toUpperCase();
+      byId.set(key, [...(byId.get(key) ?? []), ...products]);
     }
   }
-  return ids;
+  return byId;
+}
+
+// pkg:npm/%40scope/name@1.2.3 -> { name: "@scope/name", version: "1.2.3" }; version is null
+// when the purl omits it (statement covers every version).
+function parseNpmPurl(purl) {
+  const match = /^pkg:npm\/([^@?#]+(?:\/[^@?#]+)?)(?:@([^?#]+))?/.exec(purl ?? "");
+  if (!match) return null;
+  return {
+    name: decodeURIComponent(match[1]),
+    version: match[2] ? decodeURIComponent(match[2]) : null,
+  };
+}
+
+// Installed versions of a vulnerable package, from the lockfile paths npm audit reports.
+function installedVersions(vuln) {
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+  return [
+    ...new Set((vuln.nodes ?? []).map((node) => lock.packages?.[node]?.version).filter(Boolean)),
+  ];
+}
+
+function isCovered(products, pkgName, versions) {
+  if (!products || versions.length === 0) return false;
+  return versions.every((version) =>
+    products.some((p) => p.name === pkgName && (p.version === null || p.version === version))
+  );
 }
 
 function advisoryId(via) {
@@ -71,28 +103,29 @@ if (report.error) {
   process.exit(1);
 }
 
-const suppressed = suppressedAdvisoryIds();
+const suppressions = suppressionsByAdvisory();
 const threshold = SEVERITIES.indexOf(auditLevel);
 
 // Root advisories are the object entries in each vulnerability's `via`; string entries just
-// point at another vulnerable package in the chain, which is listed separately.
-const advisories = new Map();
+// point at another vulnerable package in the chain, which is listed separately. An advisory
+// is ignored only for a package whose every installed version a VEX statement covers.
+const blocking = [];
+const ignored = [];
 for (const [pkgName, vuln] of Object.entries(report.vulnerabilities ?? {})) {
+  const versions = installedVersions(vuln);
+  const seen = new Set();
   for (const via of vuln.via ?? []) {
     if (typeof via !== "object") continue;
     const id = advisoryId(via);
-    if (!advisories.has(id)) advisories.set(id, { ...via, id, pkgName });
+    if (seen.has(id) || SEVERITIES.indexOf(via.severity) < threshold) continue;
+    seen.add(id);
+    const advisory = { ...via, id, pkgName, versions };
+    (isCovered(suppressions.get(id), pkgName, versions) ? ignored : blocking).push(advisory);
   }
 }
 
-const blocking = [];
-const ignored = [];
-for (const advisory of advisories.values()) {
-  if (SEVERITIES.indexOf(advisory.severity) < threshold) continue;
-  (suppressed.has(advisory.id) ? ignored : blocking).push(advisory);
-}
-
-const describe = (a) => `  - ${a.id} (${a.severity}) in ${a.pkgName}: ${a.title ?? a.url}`;
+const describe = (a) =>
+  `  - ${a.id} (${a.severity}) in ${a.pkgName}@${a.versions.join(", ") || "?"}: ${a.title ?? a.url}`;
 if (ignored.length > 0) {
   console.log(`Ignored ${ignored.length} advisory(ies) assessed in ${VEX_PATH}:`);
   ignored.forEach((a) => console.log(describe(a)));

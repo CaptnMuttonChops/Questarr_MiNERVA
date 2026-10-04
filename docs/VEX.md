@@ -56,8 +56,9 @@ the published container image), with a `status` of one of:
 `npm audit` has no ignore list, so the build gates run
 [`scripts/audit-prod.mjs`](/scripts/audit-prod.mjs) (`npm run audit:prod`)
 instead of calling `npm audit` directly. It runs `npm audit --omit=dev --json`,
-drops every advisory whose GHSA ID has a `not_affected` or `fixed` statement in
-this feed, and fails if anything at or above `--audit-level` remains. The
+drops an advisory only when a `not_affected` or `fixed` statement in this feed
+names its GHSA ID and covers the installed package version (`products` purl;
+a purl without a version covers every version), and fails if anything at or above `--audit-level` remains. The
 `sca-scan` job (`ci.yml`) and the release gate (`deploy.yml`) use
 `--audit-level=high`; the scheduled `vulnerability-scan.yml` uses `low`.
 Adding a statement here is therefore the only way to unblock a build on an

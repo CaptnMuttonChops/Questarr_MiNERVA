@@ -28,7 +28,7 @@ PCGamingWiki sections when `server/steam-routes.ts` or
   below). The `/api/integration` subtree additionally accepts a long-lived
   integration API key (see the Integration API section); every other route,
   including key management, is JWT-only.
-- **Rate limiting**: `generalApiLimiter` (100 req/min/IP) applies to all
+- **Rate limiting**: `generalApiLimiter` (600 req/min/IP) applies to all
   `/api` routes; `authRateLimiter` additionally guards login;
   `sensitiveEndpointLimiter` additionally guards write-heavy/sensitive
   endpoints; `igdbRateLimiter` additionally guards IGDB proxy endpoints. See

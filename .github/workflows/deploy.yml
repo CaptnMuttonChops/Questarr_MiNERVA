@@ -72,7 +72,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Audit production dependencies (Critical/High blocks release)
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/audit-prod.mjs --audit-level=high
 
       # @lizenz/checker is a pinned devDependency (see package.json), installed above by
       # `npm ci` — --no-install below guarantees this never installs anything ad-hoc.

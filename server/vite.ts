@@ -87,7 +87,7 @@ export function withBaseHref(html: string, basePath: string): string {
   return html.replace("<head>", `<head>\n    <base href="${basePath}/" />`);
 }
 
-export async function serveStatic(
+export function serveStatic(
   app: Express,
   distPath = path.resolve(import.meta.dirname, "..", "public")
 ) {

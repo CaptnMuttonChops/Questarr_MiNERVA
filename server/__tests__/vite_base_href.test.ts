@@ -34,21 +34,21 @@ describe("serveStatic", () => {
   writeFileSync(path.join(distPath, "index.html"), builtIndex);
   writeFileSync(path.join(distPath, "assets", "index-abc.js"), "console.log('app');");
 
-  const createApp = async () => {
+  const createApp = () => {
     const app = express();
-    await serveStatic(app, distPath);
+    serveStatic(app, distPath);
     return app;
   };
 
   it.each(["/", "/activity/imports"])("serves index.html with the <base> at %s", async (url) => {
-    const response = await request(await createApp()).get(url);
+    const response = await request(createApp()).get(url);
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.text).toContain('<base href="/" />');
   });
 
   it("still serves built assets as files", async () => {
-    const response = await request(await createApp()).get("/assets/index-abc.js");
+    const response = await request(createApp()).get("/assets/index-abc.js");
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("javascript");
   });

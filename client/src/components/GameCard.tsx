@@ -178,7 +178,7 @@ const GameCard = ({
                 <Button
                   size="icon"
                   variant="secondary"
-                  className="h-8 w-8 bg-background/80 backdrop-blur-sm sm:h-9 sm:w-9"
+                  className="h-9 w-9 bg-background/80 backdrop-blur-sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleToggleHidden();

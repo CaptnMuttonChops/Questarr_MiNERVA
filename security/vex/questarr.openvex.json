@@ -3,8 +3,25 @@
   "@id": "https://github.com/Doezer/questarr/blob/main/security/vex/questarr.openvex.json",
   "author": "Doezer",
   "role": "Project maintainer",
-  "timestamp": "2026-07-03T08:27:09Z",
-  "version": 1,
+  "timestamp": "2026-10-04T11:15:00Z",
+  "version": 2,
   "tooling": "manual assessment, cross-referenced with npm audit and Anchore Grype/Trivy scans of the published container image",
-  "statements": []
+  "statements": [
+    {
+      "vulnerability": {
+        "@id": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+        "name": "GHSA-86w9-cpqp-85rv",
+        "aliases": ["CVE-2026-85393"]
+      },
+      "timestamp": "2026-10-04T11:15:00Z",
+      "products": [
+        {
+          "@id": "pkg:npm/node-forge@1.4.0"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "The flaw is in node-forge's RSA PKCS#1 v1.5 signature verification (publicKey.verify, reached through certificate.verify, verifyCertificateChain and csr.verify). Questarr only uses node-forge in server/ssl.ts to generate a self-signed certificate (signing, not verifying) and to parse an admin-supplied PEM certificate for its subject and expiry with certificateFromPem, which performs no signature verification. Key/certificate matching and all TLS handshakes use Node's built-in tls module. No fixed node-forge release exists yet; revisit when one is published."
+    }
+  ]
 }

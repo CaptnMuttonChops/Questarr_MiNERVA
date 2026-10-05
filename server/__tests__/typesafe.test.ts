@@ -168,7 +168,9 @@ describe("TypeSafeClient", () => {
       expect(body.state).toContain("PC");
       expect(body.model).toBe("jev-latest");
       expect(body.questions.releaseType.type).toBe("choice");
-      expect(body.questions.releaseType.criteria.unknown).toContain("not enough information");
+      expect(body.questions.releaseType.criteria.unknown).toMatch(/not enough information/i);
+      // "other" is held by auto-search, so it must not also describe an ambiguous name.
+      expect(body.questions.releaseType.criteria.other).toMatch(/clearly identifiable/i);
       expect(body.questions.sizeIsPlausible.type).toBe("noul");
     });
 

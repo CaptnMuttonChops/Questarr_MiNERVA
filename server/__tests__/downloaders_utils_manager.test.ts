@@ -240,6 +240,24 @@ describe("downloaders utils", () => {
       ).toBe("/downloads/Game Release/ShortFolder");
     });
 
+    it("keeps the shared root even when it repeats the save path's last segment", () => {
+      // qBittorrent save_path "/downloads/Game" holding the torrent folder "Game/".
+      const file = (name: string) => ({
+        name,
+        size: 1,
+        progress: 100,
+        priority: "normal" as const,
+        wanted: true,
+      });
+      expect(
+        resolveRemoteImportPath({
+          name: "Game",
+          downloadDir: "/downloads/Game",
+          files: [file("Game/a.bin"), file("Game/b.bin")],
+        })
+      ).toBe("/downloads/Game/Game");
+    });
+
     it("returns the single file name for a bare single-file torrent", () => {
       // Single-file torrent where the file sits directly in downloadDir (no subfolder).
       // The torrent display name can differ from the real filename (e.g. NSP releases).

@@ -436,6 +436,14 @@ export function resolveRemoteImportPath(details: {
   contentPath?: string | undefined;
 }): string {
   if (details.contentPath) return details.contentPath;
+  const files = details.files ?? [];
+  const sharedRoot =
+    files.length > 1 ? commonTopLevelFolder(files.map((file) => file.name)) : undefined;
+  if (sharedRoot) {
+    // The root comes from the client's own file paths, so downloadDir is its parent:
+    // append it even when downloadDir happens to end with the same name.
+    return `${stripTrailingPathSeparators(details.downloadDir)}/${sharedRoot}`;
+  }
   return buildRemoteImportPath(details.downloadDir, resolveDownloadRelativePath(details));
 }
 

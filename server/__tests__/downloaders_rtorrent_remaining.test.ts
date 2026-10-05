@@ -288,6 +288,7 @@ describe("rtorrent remaining regression coverage", () => {
       .mockResolvedValueOnce("tracker issue")
       .mockResolvedValueOnce("/downloads/questarr")
       .mockResolvedValueOnce(1704067200)
+      .mockResolvedValueOnce(1)
       .mockResolvedValueOnce([
         ["off.bin", 10, 0, 10, 0],
         ["normal.bin", 20, 10, 10, 1],
@@ -334,6 +335,7 @@ describe("rtorrent remaining regression coverage", () => {
       .mockResolvedValueOnce(1)
       .mockResolvedValueOnce("")
       .mockResolvedValueOnce("/downloads/completed")
+      .mockResolvedValueOnce(0)
       .mockResolvedValueOnce(0)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);

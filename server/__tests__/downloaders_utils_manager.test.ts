@@ -150,6 +150,64 @@ describe("downloaders utils", () => {
       ).toBe("Game Title NSP");
     });
 
+    it("returns the shared root folder when it differs from the torrent name (#968)", () => {
+      // FitGirl magnets carry the version/DLC info in their display name, but the
+      // folder written to disk is shorter.
+      const file = (name: string) => ({
+        name,
+        size: 1,
+        progress: 100,
+        priority: "normal" as const,
+        wanted: true,
+      });
+      expect(
+        resolveDownloadRelativePath({
+          name: "Cataclismo (v1.3.16.0.451 + The Old Kingdom DLC) [FitGirl Repack]",
+          downloadDir: "/downloads/complete",
+          files: [
+            file("Cataclismo [FitGirl Repack]/setup.exe"),
+            file("Cataclismo [FitGirl Repack]/fg-01.bin"),
+          ],
+        })
+      ).toBe("Cataclismo [FitGirl Repack]");
+    });
+
+    it("keeps the torrent name when files don't share a top-level folder", () => {
+      const file = (name: string) => ({
+        name,
+        size: 1,
+        progress: 100,
+        priority: "normal" as const,
+        wanted: true,
+      });
+      expect(
+        resolveDownloadRelativePath({
+          name: "Game Release",
+          downloadDir: "/downloads/complete",
+          files: [file("setup.exe"), file("data/fg-01.bin")],
+        })
+      ).toBe("Game Release");
+    });
+
+    it("keeps the torrent name when downloadDir is already the content folder (rTorrent)", () => {
+      // rTorrent's d.directory for a multi-file torrent ends with the torrent folder and
+      // its file paths are relative to it, so a shared subfolder isn't the content root.
+      const file = (name: string) => ({
+        name,
+        size: 1,
+        progress: 100,
+        priority: "normal" as const,
+        wanted: true,
+      });
+      expect(
+        resolveDownloadRelativePath({
+          name: "Game Release",
+          downloadDir: "/downloads/complete/Game Release",
+          files: [file("Data/a.bin"), file("Data/b.bin")],
+        })
+      ).toBe("Game Release");
+    });
+
     it("returns the single file name for a bare single-file torrent", () => {
       // Single-file torrent where the file sits directly in downloadDir (no subfolder).
       // The torrent display name can differ from the real filename (e.g. NSP releases).

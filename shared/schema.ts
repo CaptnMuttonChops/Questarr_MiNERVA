@@ -1002,6 +1002,11 @@ export interface DownloadDetails extends DownloadStatus {
   addedDate?: string | undefined;
   completedDate?: string | undefined;
   downloadDir?: string | undefined;
+  /**
+   * Full path of the download's content root, set only when the client reports it
+   * unambiguously (rTorrent multi-file torrents, whose file paths are relative to it).
+   */
+  contentPath?: string | undefined;
   comment?: string | undefined;
   creator?: string | undefined;
   files: DownloadFile[];

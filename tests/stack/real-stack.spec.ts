@@ -15,12 +15,9 @@ import {
 // One account, one library, one set of clients: the journeys build on each other in order.
 test.describe.configure({ mode: "serial" });
 
-// Production keeps its rate limits: 100 API requests per minute per IP. Loading the library
-// and opening one game's download dialog already costs ~45 of them, so status checks poll
-// gently and each grab starts in a fresh rate-limit window.
+// Production keeps its rate limits (600 API requests per minute per IP), so status checks
+// poll gently rather than every few hundred milliseconds.
 const POLL = { intervals: [3_000], timeout: 30_000 };
-const RATE_LIMIT_WINDOW_MS = 61_000;
-let lastGrabAt = 0;
 
 let page: Page;
 const downloaderIds: Partial<Record<ReleaseKey, string>> = {};
@@ -60,9 +57,6 @@ async function gameStatus(key: ReleaseKey): Promise<string | undefined> {
 /** Opens the game from its library card, then its download dialog, and grabs the release. */
 async function grabFromLibrary(key: ReleaseKey): Promise<void> {
   const release = RELEASES[key];
-  const wait = lastGrabAt + RATE_LIMIT_WINDOW_MS - Date.now();
-  if (lastGrabAt && wait > 0) await page.waitForTimeout(wait);
-  lastGrabAt = Date.now();
   await page.goto("/");
   await page.getByLabel(`View details for ${release.game}`, { exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Download", exact: true }).click();

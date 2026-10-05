@@ -4,12 +4,18 @@ name: Real stack
 # and a fake Torznab/Newznab indexer: setup, connection tests, a grab from the library, the
 # client's download and the import into the library (tests/stack/).
 
+# Slow (real daemons, a minute per download check), so it runs weekly and on demand, plus on
+# pull requests that change the journey itself.
 on:
-  push:
-    branches: [main, release/*]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
   pull_request:
     branches: [main, release/*]
-  workflow_dispatch:
+    paths:
+      - ".github/workflows/stack.yml"
+      - "playwright.stack.config.ts"
+      - "tests/stack/**"
 
 concurrency:
   group: stack-${{ github.ref }}
@@ -35,10 +41,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node.js 22.x
+      - name: Setup Node.js 26.x
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.x
+          node-version: 26.x
           # Same accepted cache-poisoning trade-off as ci.yml (single maintainer with push access).
           cache: "npm" # zizmor: ignore[cache-poisoning]
 

@@ -223,6 +223,22 @@ class IGDBClient {
     // ordering are finalized.
     const canonicalResults = await this.canonicalizeVersionedGames(results);
 
+    igdbLogger.debug(
+      {
+        query,
+        count: canonicalResults.length,
+        results: canonicalResults.map((game) => ({
+          id: game.id,
+          name: game.name,
+          releaseDate: game.first_release_date,
+          category: game.category,
+          gameType: game.game_type,
+          versionParent: game.version_parent?.id,
+        })),
+      },
+      "IGDB canonicalized search results"
+    );
+
     let yearRange: { start: number; end: number } | null = null;
     if (options.releaseYear) {
       yearRange = {
@@ -247,22 +263,54 @@ class IGDBClient {
       return true;
     });
 
-    const datedResults = filteredResults
-      .filter((game) => typeof game.first_release_date === "number")
-      .sort((left, right) => (right.first_release_date ?? 0) - (left.first_release_date ?? 0));
+    igdbLogger.debug(
+      {
+        query,
+        count: filteredResults.length,
+        results: filteredResults.map((game) => ({
+          id: game.id,
+          name: game.name,
+          releaseDate: game.first_release_date,
+        })),
+      },
+      "IGDB filtered search results"
+    );
+    
+    const datedResults = filteredResults.filter(
+      (game) => typeof game.first_release_date === "number"
+    );
+
+
+    let orderedResults: IGDBGame[];
 
     if (options.includeUndated === false) {
-      return datedResults.slice(0, limit);
+      orderedResults = datedResults;
+    } else {
+      const undatedResults = filteredResults.filter(
+        (game) => typeof game.first_release_date !== "number"
+      );
+
+      orderedResults = options.undatedFirst
+        ? [...undatedResults, ...datedResults]
+        : [...datedResults, ...undatedResults];
     }
 
-    const undatedResults = filteredResults.filter(
-      (game) => typeof game.first_release_date !== "number"
-    );
-    const orderedResults = options.undatedFirst
-      ? [...undatedResults, ...datedResults]
-      : [...datedResults, ...undatedResults];
+    const finalResults = orderedResults.slice(0, limit);
 
-    return orderedResults.slice(0, limit);
+    igdbLogger.debug(
+      {
+        query,
+        count: finalResults.length,
+        results: finalResults.map((game) => ({
+          id: game.id,
+          name: game.name,
+          releaseDate: game.first_release_date,
+        })),
+      },
+      "IGDB final search results"
+    );
+
+    return finalResults;
   }
 
   /**

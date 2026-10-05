@@ -1,5 +1,7 @@
 services:
   app:
+    image: questarr-minerva:test
+    pull_policy: build
     build:
       context: .
     ports:

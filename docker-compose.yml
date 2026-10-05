@@ -1,19 +1,19 @@
 services:
   app:
-    image: ghcr.io/doezer/questarr:latest
+    build:
+      context: .
     ports:
-      - "${HOST_SIDE_PORT:-5000}:${CONTAINER_INTERNAL_SIDE_PORT:-5000}"
+      - "${HOST_SIDE_PORT:-5001}:${CONTAINER_INTERNAL_SIDE_PORT:-5000}"
       - "${SSL_PORT:-9898}:${SSL_PORT:-9898}"
     environment:
       - PORT=${CONTAINER_INTERNAL_SIDE_PORT:-5000}
+      - PUID=1000
+      - GUID=1000
       # - SQLITE_DB_PATH=/app/data/sqlite.db  # Default path for sqlite db, uncomment and change if needed
       # - QUESTARR_BASE_PATH=/Questarr  # Serve from a subdirectory behind a reverse proxy, see docs/REVERSE_PROXY.md
     volumes:
-      # Persist SQLite database and other data
-      - ./data:/app/data
-      # Mount your root media/downloads folder here to allow atomic moves.
-      # Example (uncomment and adjust):
-      # - /mnt/user/data:/data
+      - /srv/docker/Questarr/data:/app/data
+      - /mnt/media/Complete:/data
     restart: unless-stopped
     healthcheck:
       test:

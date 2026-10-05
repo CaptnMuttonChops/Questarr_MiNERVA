@@ -321,6 +321,31 @@ describe("rtorrent remaining regression coverage", () => {
       ],
     });
 
+    // A multi-file torrent holding a single file: d.is_multi_file, not the file count,
+    // decides that d.directory is the content folder.
+    rpcSpy
+      .mockResolvedValueOnce("hash-one-file")
+      .mockResolvedValueOnce("One File Release")
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(100)
+      .mockResolvedValueOnce(100)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1000)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce("")
+      .mockResolvedValueOnce("/downloads/One File Release")
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce([["setup.exe", 100, 10, 10, 1]])
+      .mockResolvedValueOnce([]);
+    await expect(client.getDownloadDetails("hash-one-file")).resolves.toMatchObject({
+      contentPath: "/downloads/One File Release",
+      files: [expect.objectContaining({ name: "setup.exe" })],
+    });
+
     rpcSpy
       .mockResolvedValueOnce("hash-completed")
       .mockResolvedValueOnce("Completed Details")

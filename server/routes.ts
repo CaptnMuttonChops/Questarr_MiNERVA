@@ -2690,8 +2690,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!game) return;
 
         const roots = await resolveGameScanRoots(game, req.user!.id);
-        const filePath = roots ? await realpathOrNull(requestedPath) : null;
-        if (!roots || !filePath || !isContained(filePath, roots.scanRoot)) {
+        if (!roots) {
+          return res.status(404).json({ error: "File not found in this game's folder" });
+        }
+        // Check containment on the resolved string before touching the filesystem, then
+        // again on the real path so a symlink can't lead outside the game's folder.
+        const resolvedPath = path.resolve(roots.scanRoot, requestedPath);
+        if (!resolvedPath.startsWith(roots.scanRoot + path.sep)) {
+          return res.status(404).json({ error: "File not found in this game's folder" });
+        }
+        const filePath = await realpathOrNull(resolvedPath);
+        if (!filePath || !isContained(filePath, roots.scanRoot)) {
           return res.status(404).json({ error: "File not found in this game's folder" });
         }
         const stat = await fs.promises.stat(filePath);

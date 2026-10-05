@@ -303,6 +303,21 @@ describe("Game file routes", () => {
       expect(storage.updateGameFileCategory).not.toHaveBeenCalled();
     });
 
+    it("rejects a symlink in the game's folder that points outside it", async () => {
+      const filePath = await setupGameFile();
+      const outside = path.join(tempRoot, "outside.bin");
+      await fs.writeFile(outside, "x");
+      const link = path.join(path.dirname(filePath), "link.bin");
+      await fs.symlink(outside, link);
+
+      const response = await request(app)
+        .patch(`/api/games/${gameId}/files/category`)
+        .send({ path: link, category: "dlc" });
+
+      expect(response.status).toBe(404);
+      expect(storage.updateGameFileCategory).not.toHaveBeenCalled();
+    });
+
     it("rejects an unknown category", async () => {
       const filePath = await setupGameFile();
 

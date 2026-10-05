@@ -86,6 +86,7 @@ import {
 } from "react-icons/si";
 import { NexusModsIcon } from "./NexusModsIcon";
 import GameJournalTab from "./GameJournalTab";
+import FileCategorySelect from "./FileCategorySelect";
 import { getSocket } from "@/lib/socket";
 import { useToast } from "@/hooks/use-toast";
 import { useHiddenMutation } from "@/hooks/use-hidden-mutation";
@@ -1487,7 +1488,10 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
                         {gameFiles.map((f) => (
                           <div key={f.path} className="flex items-center gap-2 text-sm py-2">
                             <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                            <span className="truncate">{f.name}</span>
+                            <span className="min-w-0 flex-1 truncate" title={f.name}>
+                              {f.name}
+                            </span>
+                            <FileCategorySelect gameId={game.id} file={f} />
                           </div>
                         ))}
                       </div>
@@ -1508,7 +1512,10 @@ export default function GameDetailsModal({ game, open, onOpenChange }: GameDetai
                               {catFiles.map((f) => (
                                 <div key={f.path} className="flex items-center gap-2 text-sm py-2">
                                   <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                  <span className="truncate">{f.name}</span>
+                                  <span className="min-w-0 flex-1 truncate" title={f.name}>
+                                    {f.name}
+                                  </span>
+                                  <FileCategorySelect gameId={game.id} file={f} />
                                 </div>
                               ))}
                             </div>

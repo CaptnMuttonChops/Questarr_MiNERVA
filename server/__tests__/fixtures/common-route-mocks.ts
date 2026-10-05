@@ -150,6 +150,7 @@ export function createStorageMock() {
     getGameFilesByDownload: vi.fn().mockResolvedValue([]),
     addGameFile: vi.fn(),
     addGameFilesBatch: vi.fn(),
+    updateGameFileCategory: vi.fn(),
     removeGameFile: vi.fn(),
     removeGameFilesByGameId: vi.fn(),
     getApiKeys: vi.fn().mockResolvedValue([]),

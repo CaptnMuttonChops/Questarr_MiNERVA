@@ -169,6 +169,26 @@ describe.each(activeTestDialects())("storage behaviour on %s", (dialect) => {
       expect(big?.fileSize).toBe(9_663_676_416);
     });
 
+    it("stores a game file as not overridden, then flags a manual category change", async () => {
+      const [user] = await storage().getAllUsers();
+      const [game] = await storage().getUserGames(user.id);
+      const file = await storage().addGameFile({
+        gameId: game.id,
+        downloadId: null,
+        originalName: "Game.Update.zip",
+        storedName: "Game.Update.zip",
+        category: "update",
+        filePath: "/library/Game/Game.Update.zip",
+        fileSize: 1,
+      });
+      expect(file.categoryOverridden).toBe(false);
+
+      const updated = await storage().updateGameFileCategory(file.id, "dlc");
+      expect(updated).toMatchObject({ category: "dlc", categoryOverridden: true });
+      const [stored] = (await storage().getGameFiles(game.id)).filter((f) => f.id === file.id);
+      expect(stored).toMatchObject({ category: "dlc", categoryOverridden: true });
+    });
+
     it("resolves a concurrent claim-race unique conflict the same way on both dialects", async () => {
       const [user] = await storage().getAllUsers();
       const [game] = await storage().getUserGames(user.id);

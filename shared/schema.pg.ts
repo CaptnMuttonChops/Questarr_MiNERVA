@@ -431,6 +431,7 @@ export const gameFiles = pgTable(
     originalName: text("original_name").notNull(),
     storedName: text("stored_name").notNull(),
     category: text("category").notNull().$type<GameFileCategory>(),
+    categoryOverridden: boolean("category_overridden").notNull().default(false),
     filePath: text("file_path").notNull(),
     fileSize: bigint("file_size", { mode: "number" }),
     createdAt: timestampMs("created_at").default(sql`(EXTRACT(EPOCH FROM now()) * 1000)::bigint`),

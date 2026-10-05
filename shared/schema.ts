@@ -1178,6 +1178,11 @@ export const gameFiles = sqliteTable(
     originalName: text("original_name").notNull(),
     storedName: text("stored_name").notNull(),
     category: text("category").notNull().$type<GameFileCategory>(),
+    // True once the user picked the category by hand; a library scan then keeps it
+    // instead of re-deriving it from the folder or file name.
+    categoryOverridden: integer("category_overridden", { mode: "boolean" })
+      .notNull()
+      .default(false),
     filePath: text("file_path").notNull(),
     fileSize: integer("file_size"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(
@@ -1194,6 +1199,8 @@ export const insertGameFileSchema = createInsertSchema(gameFiles, {
   category: gameFileCategorySchema,
 }).omit({
   id: true,
+  // Only set through PATCH /api/games/:gameId/files/category.
+  categoryOverridden: true,
   createdAt: true,
 });
 

@@ -40,6 +40,7 @@ import {
   importConfigSchema,
   type GameFile,
   type InsertGameFile,
+  type GameFileCategory,
   type ApiKey,
   type ApiKeyPublic,
   GAME_LINK_REQUIRED_STATUS,
@@ -438,6 +439,8 @@ export interface IStorage {
   getGameFilesByDownload(downloadId: string): Promise<GameFile[]>;
   addGameFile(file: InsertGameFile): Promise<GameFile>;
   addGameFilesBatch(files: InsertGameFile[]): Promise<GameFile[]>;
+  /** Sets a user-chosen category and marks it so later scans keep it. */
+  updateGameFileCategory(id: string, category: GameFileCategory): Promise<GameFile | undefined>;
   removeGameFile(id: string): Promise<boolean>;
   removeGameFilesByGameId(gameId: string): Promise<number>;
 
@@ -1812,6 +1815,7 @@ export class MemStorage implements IStorage {
       downloadId: file.downloadId ?? null,
       category: file.category as GameFile["category"],
       fileSize: file.fileSize ?? null,
+      categoryOverridden: false,
       createdAt: new Date(),
     };
     this.gameFiles.set(id, gf);
@@ -1824,6 +1828,17 @@ export class MemStorage implements IStorage {
       result.push(await this.addGameFile(file));
     }
     return result;
+  }
+
+  async updateGameFileCategory(
+    id: string,
+    category: GameFileCategory
+  ): Promise<GameFile | undefined> {
+    const existing = this.gameFiles.get(id);
+    if (!existing) return undefined;
+    const updated: GameFile = { ...existing, category, categoryOverridden: true };
+    this.gameFiles.set(id, updated);
+    return updated;
   }
 
   async removeGameFile(id: string): Promise<boolean> {
@@ -3368,6 +3383,18 @@ export class DatabaseStorage implements IStorage {
       category: file.category as "main" | "dlc" | "update" | "extra",
     }));
     return db.insert(gameFiles).values(values).returning();
+  }
+
+  async updateGameFileCategory(
+    id: string,
+    category: GameFileCategory
+  ): Promise<GameFile | undefined> {
+    const [updated] = await db
+      .update(gameFiles)
+      .set({ category, categoryOverridden: true })
+      .where(eq(gameFiles.id, id))
+      .returning();
+    return updated;
   }
 
   async removeGameFile(id: string): Promise<boolean> {

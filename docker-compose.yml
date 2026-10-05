@@ -9,6 +9,7 @@ services:
       - PORT=${CONTAINER_INTERNAL_SIDE_PORT:-5000}
       - PUID=1000
       - PGID=1000
+      - JOMAMA=LOL
       # - SQLITE_DB_PATH=/app/data/sqlite.db  # Default path for sqlite db, uncomment and change if needed
       # - QUESTARR_BASE_PATH=/Questarr  # Serve from a subdirectory behind a reverse proxy, see docs/REVERSE_PROXY.md
     volumes:

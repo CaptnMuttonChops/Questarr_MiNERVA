@@ -203,13 +203,12 @@ export async function fetchWithMagnetDetection(
  * magnet's `dn`, "Game (v1.2 + DLC) [FitGirl Repack]") can differ from the
  * root folder written to disk ("Game [FitGirl Repack]"). When every file
  * shares one top-level folder, that folder is the real content directory.
- * rTorrent reports multi-file paths relative to the content folder, which is
- * already the tail of its downloadDir — so the torrent name is kept there.
+ * (rTorrent's multi-file paths are relative to the content folder instead; it
+ * reports that folder as `contentPath`, see resolveRemoteImportPath().)
  */
 export function resolveDownloadRelativePath(details: {
   name: string;
   files?: DownloadFile[];
-  downloadDir?: string | undefined;
 }): string {
   const files = details.files ?? [];
   if (files.length === 1 && files[0]?.name) {
@@ -217,15 +216,8 @@ export function resolveDownloadRelativePath(details: {
   }
 
   if (files.length > 1) {
-    const dirLastSegment = stripTrailingPathSeparators(details.downloadDir ?? "")
-      .split(/[\\/]/)
-      .pop()
-      ?.toLowerCase();
-    const downloadDirIsContentDir = dirLastSegment === details.name.toLowerCase();
     const root = commonTopLevelFolder(files.map((file) => file.name));
-    if (root && !downloadDirIsContentDir) {
-      return root;
-    }
+    if (root) return root;
   }
 
   return details.name;

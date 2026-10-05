@@ -198,7 +198,6 @@ describe("downloaders utils", () => {
       expect(
         resolveDownloadRelativePath({
           name: "Cataclismo (v1.3.16.0.451 + The Old Kingdom DLC) [FitGirl Repack]",
-          downloadDir: "/downloads/complete",
           files: [
             file("Cataclismo [FitGirl Repack]/setup.exe"),
             file("Cataclismo [FitGirl Repack]/fg-01.bin"),
@@ -218,15 +217,13 @@ describe("downloaders utils", () => {
       expect(
         resolveDownloadRelativePath({
           name: "Game Release",
-          downloadDir: "/downloads/complete",
           files: [file("setup.exe"), file("data/fg-01.bin")],
         })
       ).toBe("Game Release");
     });
 
-    it("keeps the torrent name when downloadDir is already the content folder (rTorrent)", () => {
-      // rTorrent's d.directory for a multi-file torrent ends with the torrent folder and
-      // its file paths are relative to it, so a shared subfolder isn't the content root.
+    it("uses the shared root folder even when the save path ends with the torrent name", () => {
+      // qBittorrent/Transmission downloadDir is always the parent save directory.
       const file = (name: string) => ({
         name,
         size: 1,
@@ -235,12 +232,12 @@ describe("downloaders utils", () => {
         wanted: true,
       });
       expect(
-        resolveDownloadRelativePath({
+        resolveRemoteImportPath({
           name: "Game Release",
-          downloadDir: "/downloads/complete/Game Release",
-          files: [file("Data/a.bin"), file("Data/b.bin")],
+          downloadDir: "/downloads/Game Release",
+          files: [file("ShortFolder/a.bin"), file("ShortFolder/b.bin")],
         })
-      ).toBe("Game Release");
+      ).toBe("/downloads/Game Release/ShortFolder");
     });
 
     it("returns the single file name for a bare single-file torrent", () => {

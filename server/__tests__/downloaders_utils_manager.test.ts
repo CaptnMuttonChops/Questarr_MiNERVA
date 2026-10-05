@@ -9,6 +9,7 @@ import {
   fetchWithMagnetDetection,
   fixNzbUrlEncoding,
   resolveDownloadRelativePath,
+  resolveRemoteImportPath,
 } from "../downloaders/utils.js";
 import { NZBGetClient } from "../downloaders/nzbget.js";
 import { QBittorrentClient } from "../downloaders/qbittorrent.js";
@@ -113,6 +114,40 @@ describe("downloaders utils", () => {
     expect(buildRemoteImportPath("/downloads/deluge/complete", "My Game Release")).toBe(
       "/downloads/deluge/complete/My Game Release"
     );
+  });
+
+  describe("resolveRemoteImportPath", () => {
+    const file = (name: string) => ({
+      name,
+      size: 1,
+      progress: 100,
+      priority: "normal" as const,
+      wanted: true,
+    });
+
+    it("uses the client-reported content path as is (rTorrent with a custom data path)", () => {
+      expect(
+        resolveRemoteImportPath({
+          name: "Game Release",
+          downloadDir: "/data/custom-folder",
+          contentPath: "/data/custom-folder",
+          files: [file("Data/a.bin"), file("Data/b.bin")],
+        })
+      ).toBe("/data/custom-folder");
+    });
+
+    it("joins downloadDir with the files' shared root folder otherwise", () => {
+      expect(
+        resolveRemoteImportPath({
+          name: "Cataclismo (v1.3.16.0.451 + The Old Kingdom DLC) [FitGirl Repack]",
+          downloadDir: "/downloads/complete/",
+          files: [
+            file("Cataclismo [FitGirl Repack]/setup.exe"),
+            file("Cataclismo [FitGirl Repack]/fg-01.bin"),
+          ],
+        })
+      ).toBe("/downloads/complete/Cataclismo [FitGirl Repack]");
+    });
   });
 
   describe("resolveDownloadRelativePath", () => {

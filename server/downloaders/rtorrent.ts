@@ -389,6 +389,9 @@ export class RTorrentClient implements DownloaderClient {
         error: message || undefined,
         hash,
         downloadDir: directory,
+        // For a multi-file torrent d.directory already is the content folder (whatever
+        // its name) and f.path entries are relative to it.
+        contentPath: files.length > 1 ? directory : undefined,
         addedDate: creationDate > 0 ? new Date(creationDate * 1000).toISOString() : undefined,
         files,
         filesSupport: "supported",

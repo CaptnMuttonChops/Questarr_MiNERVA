@@ -13,7 +13,7 @@ import {
   reorganizeBySortExtras,
 } from "./ImportStrategies.js";
 import { DownloaderManager } from "../downloaders.js";
-import { resolveDownloadRelativePath, buildRemoteImportPath } from "../downloaders/utils.js";
+import { resolveRemoteImportPath } from "../downloaders/utils.js";
 import fs from "fs-extra";
 import path from "node:path";
 import { parseReleaseMetadata } from "../../shared/title-utils.js";
@@ -947,10 +947,7 @@ export class ImportManager {
     const details = await DownloaderManager.getDownloadDetails(downloader, download.downloadHash);
     if (!details?.downloadDir) return undefined;
 
-    const remotePath = buildRemoteImportPath(
-      details.downloadDir,
-      resolveDownloadRelativePath(details)
-    );
+    const remotePath = resolveRemoteImportPath({ ...details, downloadDir: details.downloadDir });
     const remoteHost = this.extractRemoteHost(downloader.url);
     return this.pathService.translatePath(remotePath, remoteHost);
   }

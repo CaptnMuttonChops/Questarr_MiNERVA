@@ -432,6 +432,21 @@ export function stripTrailingPathSeparators(value: string): string {
   return value.slice(0, end);
 }
 
+/**
+ * Resolves the remote path to import a download from: the client-reported
+ * content root when there is one, otherwise downloadDir joined with the
+ * resolved relative path.
+ */
+export function resolveRemoteImportPath(details: {
+  name: string;
+  files?: DownloadFile[];
+  downloadDir: string;
+  contentPath?: string | undefined;
+}): string {
+  if (details.contentPath) return details.contentPath;
+  return buildRemoteImportPath(details.downloadDir, resolveDownloadRelativePath(details));
+}
+
 export function buildRemoteImportPath(downloadDir: string, relativePath: string): string {
   const normalizedDir = stripTrailingPathSeparators(downloadDir);
   const normalizedRelative = relativePath.replace(/^[\\/]+/, "");

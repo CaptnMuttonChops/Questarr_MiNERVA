@@ -305,6 +305,8 @@ describe("rtorrent remaining regression coverage", () => {
       progress: 50,
       ratio: 1.5,
       addedDate: "2024-01-01T00:00:00.000Z",
+      // Multi-file: d.directory already is the content folder.
+      contentPath: "/downloads/questarr",
       files: [
         expect.objectContaining({ priority: "off", wanted: false, progress: 0 }),
         expect.objectContaining({ priority: "normal", wanted: true, progress: 100 }),
@@ -337,6 +339,7 @@ describe("rtorrent remaining regression coverage", () => {
       .mockResolvedValueOnce([]);
     await expect(client.getDownloadDetails("hash-completed")).resolves.toMatchObject({
       status: "completed",
+      contentPath: undefined,
     });
 
     rpcSpy.mockRejectedValueOnce(new Error("details failed"));

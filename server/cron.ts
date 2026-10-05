@@ -5,7 +5,7 @@ import { igdbLogger } from "./logger.js";
 import { notifyUser } from "./socket.js";
 import { resolvePrefs } from "./notification-prefs.js";
 import { DownloaderManager } from "./downloaders.js";
-import { resolveDownloadRelativePath, buildRemoteImportPath } from "./downloaders/utils.js";
+import { resolveRemoteImportPath } from "./downloaders/utils.js";
 import { torznabClient } from "./torznab.js";
 import { newznabClient } from "./newznab.js";
 import {
@@ -919,10 +919,10 @@ export async function checkDownloadStatus() {
                 download.downloadHash
               );
               if (details?.downloadDir) {
-                const remoteImportPath = buildRemoteImportPath(
-                  details.downloadDir,
-                  resolveDownloadRelativePath(details)
-                );
+                const remoteImportPath = resolveRemoteImportPath({
+                  ...details,
+                  downloadDir: details.downloadDir,
+                });
                 try {
                   await importManager.processImport(download.id, remoteImportPath);
                 } catch (error) {

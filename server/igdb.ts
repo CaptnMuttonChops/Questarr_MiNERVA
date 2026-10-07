@@ -222,10 +222,10 @@ class IGDBClient {
     // function, even when its canonical parent would. Truncation to
     // `limit` happens only once, at the very end, after filtering and
     // ordering are finalized.
-    igdbLogger.debug({query, inputCount: results.length}, "ENTERED postProcessSearchResults");
+    igdbLogger.info({query, inputCount: results.length}, "ENTERED postProcessSearchResults");
     const canonicalResults = await this.canonicalizeVersionedGames(results);
 
-    igdbLogger.debug(
+    igdbLogger.info(
       {
         query,
         count: canonicalResults.length,
@@ -265,7 +265,7 @@ class IGDBClient {
       return true;
     });
 
-    igdbLogger.debug(
+    igdbLogger.info(
       {
         query,
         count: filteredResults.length,
@@ -299,7 +299,7 @@ class IGDBClient {
 
     const finalResults = orderedResults.slice(0, limit);
 
-    igdbLogger.debug(
+    igdbLogger.info(
       {
         query,
         count: finalResults.length,
@@ -584,7 +584,7 @@ class IGDBClient {
       if (ttl > 0) {
         const expiry = Date.now() + ttl;
         this.cache.set(cacheKey, { data, expiry });
-        igdbLogger.debug({ cacheKey, ttl }, "cached response");
+        igdbLogger.info({ cacheKey, ttl }, "cached response");
       }
 
       return data as T;
@@ -607,13 +607,13 @@ class IGDBClient {
     if (this.cache.has(cacheKey)) {
       const entry = this.cache.get(cacheKey)!;
       if (Date.now() < entry.expiry) {
-        igdbLogger.debug({ cacheKey }, "cache hit");
+        igdbLogger.info({ cacheKey }, "cache hit");
         return entry.data as T;
       }
-      igdbLogger.debug({ cacheKey }, "cache expired");
+      igdbLogger.info({ cacheKey }, "cache expired");
       this.cache.delete(cacheKey);
     }
-    igdbLogger.debug({ cacheKey }, "cache miss");
+    igdbLogger.info({ cacheKey }, "cache miss");
 
     if (skipQueue) {
       return this.executeRequest<T>(endpoint, query, ttl, cacheKey);
@@ -690,7 +690,7 @@ class IGDBClient {
       if (approach === undefined) continue;
       try {
         attemptCount++;
-        igdbLogger.debug(
+        igdbLogger.info(
           {
             approach: i + 1,
             query: sanitizedQuery,
@@ -1222,7 +1222,7 @@ class IGDBClient {
       .filter((game) => game.igdbId !== undefined)
       .map((game) => game.igdbId!);
 
-    igdbLogger.debug(
+    igdbLogger.info(
       {
         genreCount: userGenres.length,
         platformCount: userPlatforms.length,

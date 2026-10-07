@@ -222,6 +222,7 @@ class IGDBClient {
     // function, even when its canonical parent would. Truncation to
     // `limit` happens only once, at the very end, after filtering and
     // ordering are finalized.
+    igdbLogger.debug({query, inputCount: results.length}, "ENTERED postProcessSearchResults");
     const canonicalResults = await this.canonicalizeVersionedGames(results);
 
     igdbLogger.debug(

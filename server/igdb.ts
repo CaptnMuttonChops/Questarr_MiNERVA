@@ -207,7 +207,8 @@ class IGDBClient {
   private async postProcessSearchResults(
     results: IGDBGame[],
     limit: number,
-    options: SearchGamesOptions = {}
+    options: SearchGamesOptions = {},
+    query?: string
   ): Promise<IGDBGame[]> {
     // Canonicalize (collapse edition/version entries into their base game)
     // FIRST, before platformId/releaseYear filtering and date-based
@@ -712,7 +713,7 @@ class IGDBClient {
           // to show; otherwise fall through to the next search approach
           // instead of returning an empty result out from under a query
           // that a later, less-targeted approach might still satisfy.
-          const processedResults = await this.postProcessSearchResults(results, limit, options);
+          const processedResults = await this.postProcessSearchResults(results, limit, options, sanitizedQuery);
           if (processedResults.length > 0) {
             return processedResults;
           }
@@ -793,7 +794,7 @@ class IGDBClient {
         // unhandled crash; fall back to the uncanonicalized/unfiltered
         // word-search results instead.
         try {
-          return await this.postProcessSearchResults(uniqueResults, limit, options);
+          return await this.postProcessSearchResults(uniqueResults, limit, options, sanitizedQuery);
         } catch (error) {
           igdbLogger.warn(
             { error, query: sanitizedQuery },

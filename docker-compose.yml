@@ -1,7 +1,6 @@
 services:
   app:
-    networks:
-      - bridge
+    network_mode: bridge
     image: questarr-minerva:test
     pull_policy: build
     build:
@@ -32,7 +31,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-networks:
-  bridge:
-    external: true
